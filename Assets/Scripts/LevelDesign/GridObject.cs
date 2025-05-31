@@ -4,6 +4,7 @@ using UnityEngine.Events;
 /// <summary>
 /// Kaan Çakar 2025 - GridObject.cs
 /// Component for objects placed on the grid (walls, people,etc.)
+/// Updated with Null Reference Fixes
 /// </summary>
 public class GridObject : MonoBehaviour
 {
@@ -105,13 +106,17 @@ public class GridObject : MonoBehaviour
         // Event'i tetikle
         OnPersonClicked?.Invoke();
 
-        // GameManager'a bildir - DÜZELTME: OnPersonSelected metodu var
+        // GameManager'a bildir - OTOMATIK HAREKET BAŞLATILACAK
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnPersonSelected(this);
         }
+        else
+        {
+            Debug.LogError("GameManager.Instance is null!");
+        }
 
-        Debug.Log($"Person clicked: {personColor} at ({gridCell.x}, {gridCell.z})");
+        Debug.Log($"Person clicked: {personColor} at ({gridCell?.x}, {gridCell?.z})");
     }
 
     void UpdatePlayableStatus()
@@ -231,17 +236,17 @@ public class GridObject : MonoBehaviour
         targetPosition = newPosition;
         isMoving = true;
 
-        // Eski cell'i boşalt - DÜZELTME: SetEmpty() kullan
+        // Eski cell'i boşalt - NULL CHECK
         if (gridCell != null)
         {
             gridCell.SetEmpty();
         }
 
-        // Yeni cell'i işgal et
+        // Yeni cell'i işgal et - NULL CHECK
         if (newCell != null)
         {
             gridCell = newCell;
-            newCell.SetOccupied(gameObject); // DÜZELTME: GameObject parametre olmalı
+            newCell.SetOccupied(gameObject);
         }
     }
 
@@ -261,14 +266,14 @@ public class GridObject : MonoBehaviour
         }
     }
 
-    // Otobüse binme metodu (yeni sistem için)
+    // Otobüse binme metodu - 3D sistem için güncellenmiş
     public void BoardBus()
     {
         if (objectType != GridObjectType.Person) return;
 
         isInBus = true;
         
-        // Grid cell'i boşalt - DÜZELTME: SetEmpty() kullan
+        // Grid cell'i boşalt - NULL CHECK
         if (gridCell != null)
         {
             gridCell.SetEmpty();
@@ -277,17 +282,16 @@ public class GridObject : MonoBehaviour
 
         OnPersonBoarded?.Invoke();
         
-        // Görsel efekt eklenebilir (otobüse doğru hareket vs.)
-        StartCoroutine(MoveTowardsBus());
+        // Basit otobüse binme animasyonu
+        StartCoroutine(BoardBusAnimation());
     }
 
-    System.Collections.IEnumerator MoveTowardsBus()
+    System.Collections.IEnumerator BoardBusAnimation()
     {
-        // Otobüse doğru hareket animasyonu
         Vector3 startPos = transform.position;
-        Vector3 busDirection = Vector3.up * 5f; // Otobüs yukarıda varsayılıyor
+        Vector3 busDirection = Vector3.up * 3f; // Yukarı hareket
         
-        float duration = 1f;
+        float duration = 0.8f;
         float elapsed = 0f;
         
         while (elapsed < duration)
@@ -295,63 +299,42 @@ public class GridObject : MonoBehaviour
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
             
+            // Yukarı hareket + küçülme
             transform.position = Vector3.Lerp(startPos, startPos + busDirection, t);
             transform.localScale = Vector3.Lerp(Vector3.one, Vector3.zero, t);
             
             yield return null;
         }
         
-        // Animasyon tamamlandı, objeyi yok et
+        // Animasyon tamamlandı
         gameObject.SetActive(false);
+        Debug.Log($"{personColor} person boarded the bus");
     }
 
-    // Bekleme gridine gönderme metodu
+    // Bekleme gridine gönderme metodu - SADECE STATE DEĞİŞTİRİR
     public void SendToWaitingGrid()
     {
         if (objectType != GridObjectType.Person) return;
 
         isInWaitingGrid = true;
         
-        // Grid cell'i boşalt - DÜZELTME: SetEmpty() kullan  
+        // Grid cell'i boşalt - NULL CHECK
         if (gridCell != null)
         {
             gridCell.SetEmpty();
             gridCell = null;
         }
 
-        // Bekleme gridi pozisyonuna taşı
-        StartCoroutine(MoveToWaitingGrid());
-    }
-
-    System.Collections.IEnumerator MoveToWaitingGrid()
-    {
-        // Bekleme gridine hareket animasyonu
-        Vector3 startPos = transform.position;
-        Vector3 waitingGridPos = new Vector3(0, 2f, -5f); // Bekleme gridi pozisyonu (ayarlanacak)
+        // NOTE: Hareket artık WaitingGrid.AddPersonToWaiting() içinde yapılıyor
+        // Bu metod sadece state'i güncelliyor
         
-        float duration = 1f;
-        float elapsed = 0f;
-        
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = elapsed / duration;
-            
-            transform.position = Vector3.Lerp(startPos, waitingGridPos, t);
-            
-            yield return null;
-        }
-        
-        // Bekleme gridinde bekliyor
-        Debug.Log($"{personColor} person is now in waiting grid");
+        Debug.Log($"{personColor} person marked for waiting grid");
     }
 
     public bool IsPlayable()
     {
         return isPlayable && !isInBus && !isInWaitingGrid;
     }
-
-    // Debug için
     void OnDrawGizmosSelected()
     {
         if (gridCell != null)

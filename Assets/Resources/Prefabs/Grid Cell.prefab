@@ -223,9 +223,8 @@ MonoBehaviour:
     worldPosition: {x: 0, y: 0, z: 0}
     IsWalkable: 0
     IsOccupied: 0
-    cellObject: {fileID: 7438523549462407547}
-    occupyingObject: {fileID: 7438523549462407547}
-    cellType: 0
+    cellObject: {fileID: 0}
+    occupyingObject: {fileID: 0}
     movementCost: 0
   OnCellClicked:
     m_PersistentCalls:

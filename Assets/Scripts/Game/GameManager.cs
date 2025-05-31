@@ -4,7 +4,7 @@ using UnityEngine.Events;
 
 /// <summary>
 /// Kaan Çakar 2025 - GameManager.cs
-/// Main game logic controller for the bus puzzle game
+/// Main game logic controller for the bus puzzle game - Final Version
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -17,14 +17,17 @@ public class GameManager : MonoBehaviour
     public int peopleInBuses = 0;
     
     [Header("Bus System")]
-    public List<BusData> allBuses = new List<BusData>(); // Tüm otobüsler
-    public BusData currentBus; // Şu an bekleyen otobüs
+    public List<BusData> allBuses = new List<BusData>();
+    public BusData currentBus;
     public int currentBusIndex = 0;
+    public Transform busPosition; // Otobüsün bulunduğu pozisyon
+    public GameObject currentBusObject; // Mevcut otobüs objesi
     
-    [Header("Waiting Grid System")]
-    public int waitingGridCapacity = 5;
-    public int waitingGridCount = 0;
-    public List<GridObject> waitingPeople = new List<GridObject>();
+    [Header("3D Waiting Grid System")]
+    public WaitingGrid waitingGrid; // WaitingGrid referansı
+    
+    [Header("Level Data")]
+    public LevelData currentLevelData; // Inspector'dan atanacak
     
     [Header("Events")]
     public UnityEvent OnLevelComplete;
@@ -42,7 +45,7 @@ public class GameManager : MonoBehaviour
     
     private GridManager gridManager;
     private List<GridObject> allPeople = new List<GridObject>();
-    private GridObject selectedPerson; // Seçili kişi
+    private GridObject selectedPerson;
     
     public static GameManager Instance { get; private set; }
     
@@ -66,6 +69,15 @@ public class GameManager : MonoBehaviour
             Debug.LogError("GridManager not found in scene!");
         }
         
+        // Waiting Grid'i bul
+        if (waitingGrid == null)
+            waitingGrid = FindObjectOfType<WaitingGrid>();
+        
+        if (waitingGrid == null)
+        {
+            Debug.LogError("WaitingGrid not found in scene!");
+        }
+        
         InitializeLevel();
         StartLevel();
     }
@@ -81,10 +93,7 @@ public class GameManager : MonoBehaviour
     
     void InitializeLevel()
     {
-        // Grid'deki tüm objeleri topla
         CollectGridObjects();
-        
-        // Otobüs verilerini hazırla
         SetupBuses();
         
         totalPeople = allPeople.Count;
@@ -112,31 +121,40 @@ public class GameManager : MonoBehaviour
     {
         allBuses.Clear();
         
-        // Her renk için otobüs oluştur (sadece grid'de o renkte insan varsa)
-        var usedColors = new HashSet<PersonColor>();
-        
-        foreach (var person in allPeople)
+        // Önce level data'dan bus sequence'ı al
+        if (currentLevelData != null && currentLevelData.busSequence != null && currentLevelData.busSequence.Count > 0)
         {
-            usedColors.Add(person.personColor);
+            // Level editor'dan gelen bus sequence'ı kullan
+            allBuses = new List<BusData>(currentLevelData.busSequence);
+            Debug.Log($"Loaded {allBuses.Count} buses from level data");
         }
-        
-        foreach (var color in usedColors)
+        else
         {
-            allBuses.Add(new BusData
+            // Fallback: Grid'deki renklere göre otomatik oluştur
+            var usedColors = new HashSet<PersonColor>();
+            
+            foreach (var person in allPeople)
             {
-                color = color,
-                capacity = 3, // Her otobüs 3 kişilik
-                currentPassengers = 0
-            });
+                usedColors.Add(person.personColor);
+            }
+            
+            foreach (var color in usedColors)
+            {
+                allBuses.Add(new BusData
+                {
+                    color = color,
+                    capacity = 3,
+                    currentPassengers = 0
+                });
+            }
+            
+            Debug.Log($"Auto-generated {allBuses.Count} buses from grid colors");
         }
         
-        // Otobüsleri karıştır (zorluk için)
-        for (int i = 0; i < allBuses.Count; i++)
+        // Reset passenger counts
+        foreach (var bus in allBuses)
         {
-            var temp = allBuses[i];
-            int randomIndex = Random.Range(i, allBuses.Count);
-            allBuses[i] = allBuses[randomIndex];
-            allBuses[randomIndex] = temp;
+            bus.currentPassengers = 0;
         }
     }
     
@@ -144,8 +162,6 @@ public class GameManager : MonoBehaviour
     {
         isGameActive = true;
         currentBusIndex = 0;
-        waitingGridCount = 0;
-        waitingPeople.Clear();
         selectedPerson = null;
         
         // İlk otobüsü getir
@@ -170,91 +186,207 @@ public class GameManager : MonoBehaviour
         }
         
         currentBus = allBuses[currentBusIndex];
-        currentBus.currentPassengers = 0; // Reset passenger count
+        currentBus.currentPassengers = 0;
         
         OnBusArrived?.Invoke(currentBus);
         OnGameMessage?.Invoke($"{currentBus.color} bus has arrived! ({currentBus.capacity} seats)");
         
+        // Waiting grid'deki uygun renkteki insanları otobüse bindir
+        CheckAndBoardFromWaitingGrid();
+        
         Debug.Log($"Bus arrived: {currentBus.color} with {currentBus.capacity} capacity");
     }
     
-    // Kişi seçildiğinde çağrılır
-    public void OnPersonSelected(GridObject person)
+    /// <summary>
+    /// Waiting grid'de otobüs rengine uygun insanları kontrol et ve bindir
+    /// </summary>
+    void CheckAndBoardFromWaitingGrid()
     {
-        if (selectedPerson != null)
+        if (waitingGrid == null || currentBus == null) return;
+        
+        // Waiting grid'de bu renkte kaç kişi var?
+        int availablePeople = waitingGrid.GetPeopleCountByColor(currentBus.color);
+        
+        if (availablePeople > 0)
         {
-            selectedPerson.SetSelected(false);
+            OnGameMessage?.Invoke($"Found {availablePeople} {currentBus.color} people in waiting area!");
+            
+            // Bu renkteki insanları al
+            List<GridObject> peopleToBoard = waitingGrid.GetPeopleByColor(currentBus.color);
+            
+            // Otobüs kapasitesi kadar bindir
+            int boarded = 0;
+            for (int i = 0; i < peopleToBoard.Count && boarded < currentBus.capacity; i++)
+            {
+                GridObject person = peopleToBoard[i];
+                
+                // Waiting grid'den çıkar
+                waitingGrid.RemovePersonByObject(person);
+                
+                // Otobüse bindir
+                StartCoroutine(BoardPersonFromWaitingGrid(person));
+                
+                boarded++;
+            }
+            
+            OnGameMessage?.Invoke($"{boarded} people boarded from waiting area!");
         }
-        
-        selectedPerson = person;
-        person.SetSelected(true);
-        
-        // Kişiyi otobüse bindirmeye çalış
-        TryBoardPerson(person);
-        
-        OnPersonSelectedEvent?.Invoke(person); // Event'i tetikle
     }
     
-    public bool TryBoardPerson(GridObject person)
+    /// <summary>
+    /// Waiting grid'den otobüse binme animasyonu
+    /// </summary>
+    System.Collections.IEnumerator BoardPersonFromWaitingGrid(GridObject person)
     {
-        if (currentBus == null) return false;
+        Vector3 startPos = person.transform.position;
+        Vector3 busPos = GetBusPosition();
+        Vector3 busEntryPoint = busPos + Vector3.back * 2f;
+        
+        float duration = 1.2f;
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            
+            person.transform.position = Vector3.Lerp(startPos, busEntryPoint, t);
+            yield return null;
+        }
+        
+        // Otobüse bindir
+        person.BoardBus();
+        currentBus.currentPassengers++;
+        peopleInBuses++;
+        
+        OnGameMessage?.Invoke($"{person.personColor} boarded from waiting area! ({currentBus.currentPassengers}/{currentBus.capacity})");
+        
+        // Otobüs doldu mu?
+        if (currentBus.IsFull())
+        {
+            yield return new WaitForSeconds(0.5f); // Kısa bekleme
+            DepartCurrentBus();
+        }
+    }
+    
+    // Kişi seçildiğinde çağrılır - ANA OYUN MEKANİĞİ
+    public void OnPersonSelected(GridObject person)
+    {
+        if (!person.IsPlayable())
+        {
+            OnGameMessage?.Invoke("This person cannot move!");
+            return;
+        }
+        
+        // Renk kontrolü yap ve hedefe gönder
+        ProcessPersonMovement(person);
+        
+        OnPersonSelectedEvent?.Invoke(person);
+    }
+    
+    void ProcessPersonMovement(GridObject person)
+    {
+        if (currentBus == null)
+        {
+            OnGameMessage?.Invoke("No bus available!");
+            return;
+        }
         
         // Renk kontrolü
         if (person.personColor == currentBus.color)
         {
-            // Doğru renk - otobüse bindir
-            if (currentBus.currentPassengers < currentBus.capacity)
-            {
-                currentBus.currentPassengers++;
-                peopleInBuses++;
-                
-                // Kişiyi otobüse bindir
-                person.BoardBus();
-                
-                // Kişiyi grid'den kaldır
-                RemovePersonFromGrid(person);
-                
-                OnGameMessage?.Invoke($"{person.personColor} person boarded the bus! ({currentBus.currentPassengers}/{currentBus.capacity})");
-                
-                // Otobüs doldu mu?
-                if (currentBus.currentPassengers >= currentBus.capacity)
-                {
-                    DepartCurrentBus();
-                }
-                
-                return true;
-            }
+            // Doğru renk - otobüse gönder
+            SendPersonToBus(person);
         }
         else
         {
             // Yanlış renk - bekleme gridine gönder
-            return SendToWaitingGrid(person);
+            SendPersonToWaitingGrid(person);
         }
-        
-        return false;
     }
     
-    bool SendToWaitingGrid(GridObject person)
+    void SendPersonToBus(GridObject person)
     {
-        if (waitingGridCount >= waitingGridCapacity)
+        if (currentBus.IsFull())
         {
-            // Bekleme gridi dolu - oyun kaybedildi
-            LoseGame("Waiting grid is full!");
-            return false;
+            OnGameMessage?.Invoke("Bus is full!");
+            return;
         }
         
-        waitingGridCount++;
-        waitingPeople.Add(person);
+        // Otobüs pozisyonunu al
+        Vector3 targetBusPosition = GetBusPosition();
         
-        // Kişiyi bekleme gridine taşı
-        person.SendToWaitingGrid();
+        // Kişiyi otobüse hareket ettir
+        StartCoroutine(MovePersonToBus(person, targetBusPosition));
+    }
+    
+    Vector3 GetBusPosition()
+    {
+        if (busPosition != null)
+            return busPosition.position;
         
-        // Kişiyi grid'den kaldır
+        if (currentBusObject != null)
+            return currentBusObject.transform.position;
+            
+        // Fallback - ekranın ortası
+        return new Vector3(0, 1, 0);
+    }
+    
+    System.Collections.IEnumerator MovePersonToBus(GridObject person, Vector3 busPos)
+    {
+        Vector3 startPos = person.transform.position;
+        Vector3 busEntryPoint = busPos + Vector3.back * 2f; // Otobüsün arkasına
+        
+        float duration = 1.5f;
+        float elapsed = 0f;
+        
+        // Grid'den kaldır
         RemovePersonFromGrid(person);
         
-        OnGameMessage?.Invoke($"Wrong color! Person sent to waiting area. ({waitingGridCount}/{waitingGridCapacity})");
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            
+            person.transform.position = Vector3.Lerp(startPos, busEntryPoint, t);
+            yield return null;
+        }
         
-        return true;
+        // Otobüse bindir
+        person.BoardBus();
+        currentBus.currentPassengers++;
+        peopleInBuses++;
+        
+        OnGameMessage?.Invoke($"{person.personColor} boarded! ({currentBus.currentPassengers}/{currentBus.capacity})");
+        
+        // Otobüs doldu mu?
+        if (currentBus.IsFull())
+        {
+            DepartCurrentBus();
+        }
+    }
+    
+    void SendPersonToWaitingGrid(GridObject person)
+    {
+        // Waiting grid dolu mu?
+        if (waitingGrid != null && waitingGrid.IsFull())
+        {
+            LoseGame("Waiting grid is full!");
+            return;
+        }
+        
+        // Kişiyi waiting grid'e ekle (hareket WaitingGrid tarafından yapılacak)
+        if (waitingGrid != null && waitingGrid.AddPersonToWaiting(person))
+        {
+            // Başarıyla eklendi
+            RemovePersonFromGrid(person);
+            
+            OnGameMessage?.Invoke($"Wrong color! ({waitingGrid.GetOccupiedCount()}/{waitingGrid.capacity})");
+        }
+        else
+        {
+            LoseGame("Failed to add person to waiting area!");
+        }
     }
     
     void DepartCurrentBus()
@@ -274,7 +406,7 @@ public class GameManager : MonoBehaviour
     {
         if (person.gridCell != null)
         {
-            person.gridCell.SetEmpty(); // DÜZELTME: SetOccupied(false) yerine SetEmpty()
+            person.gridCell.SetEmpty();
             person.gridCell = null;
         }
         
@@ -294,7 +426,7 @@ public class GameManager : MonoBehaviour
         
         foreach (var neighbor in neighbors)
         {
-            if (!neighbor.IsOccupied) // DÜZELTME: isOccupied yerine IsOccupied
+            if (!neighbor.IsOccupied)
             {
                 return true; // En az bir boş komşu var
             }
@@ -329,8 +461,8 @@ public class GameManager : MonoBehaviour
     
     void CheckLoseCondition()
     {
-        // Bekleme gridi dolu mu?
-        if (waitingGridCount >= waitingGridCapacity)
+        // Waiting Grid dolu mu?
+        if (waitingGrid != null && waitingGrid.IsFull())
         {
             LoseGame("Waiting grid is full!");
             return;
@@ -362,13 +494,34 @@ public class GameManager : MonoBehaviour
     {
         if (statusText != null)
         {
-            statusText.text = $"People: {peopleInBuses}/{totalPeople} | Waiting: {waitingGridCount}/{waitingGridCapacity}";
+            int waitingCount = waitingGrid != null ? waitingGrid.GetOccupiedCount() : 0;
+            int waitingCapacity = waitingGrid != null ? waitingGrid.capacity : 5;
+            
+            statusText.text = $"People: {peopleInBuses}/{totalPeople} | Waiting: {waitingCount}/{waitingCapacity}";
         }
         
         if (busInfoText != null && currentBus != null)
         {
-            busInfoText.text = $"Current Bus: {currentBus.color} ({currentBus.currentPassengers}/{currentBus.capacity})";
+            busInfoText.text = $"Bus: {currentBus.color} ({currentBus.currentPassengers}/{currentBus.capacity})";
         }
+    }
+    
+    // Level data yükleme metodu
+    public void LoadLevelData(LevelData levelData)
+    {
+        currentLevelData = levelData;
+        
+        // Grid'i yeniden oluştur
+        if (gridManager != null)
+        {
+            gridManager.gridWidth = levelData.gridWidth;
+            gridManager.gridHeight = levelData.gridHeight;
+            gridManager.ForceGridRecreation();
+        }
+        
+        // Level'ı yeniden başlat
+        InitializeLevel();
+        StartLevel();
     }
     
     // Public methods for UI buttons
@@ -383,7 +536,7 @@ public class GameManager : MonoBehaviour
         RestartLevel();
     }
     
-    // Getter methods for other scripts
+    // Getter methods
     public BusData GetCurrentBus()
     {
         return currentBus;
@@ -391,24 +544,11 @@ public class GameManager : MonoBehaviour
     
     public bool IsWaitingGridFull()
     {
-        return waitingGridCount >= waitingGridCapacity;
-    }
-}
-
-[System.Serializable]
-public class BusData
-{
-    public PersonColor color;
-    public int capacity = 3;
-    public int currentPassengers = 0;
-    
-    public bool IsFull()
-    {
-        return currentPassengers >= capacity;
+        return waitingGrid != null ? waitingGrid.IsFull() : false;
     }
     
-    public bool HasSpace()
+    public int GetWaitingGridCount()
     {
-        return currentPassengers < capacity;
+        return waitingGrid != null ? waitingGrid.GetOccupiedCount() : 0;
     }
 }
