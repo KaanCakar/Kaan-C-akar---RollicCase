@@ -18,12 +18,6 @@ public class BusComponent : MonoBehaviour
     public GameObject passengerIndicatorPrefab;
     public List<GameObject> passengerIndicators = new List<GameObject>();
 
-    [Header("UI Elements")]
-    public Canvas busCanvas; // Otobüsün üstündeki UI
-    public TextMeshProUGUI busInfoText;
-    public Image busColorImage;
-    public Slider capacitySlider;
-
     [Header("Animation")]
     public Animator busAnimator;
 
@@ -38,11 +32,6 @@ public class BusComponent : MonoBehaviour
 
         if (busAnimator == null)
             busAnimator = GetComponent<Animator>();
-        // Canvas'ı kameraya doğru çevir
-        if (busCanvas != null)
-        {
-            busCanvas.worldCamera = Camera.main;
-        }
     }
 
     public void Initialize(BusData data)
@@ -50,7 +39,6 @@ public class BusComponent : MonoBehaviour
         busData = data;
         SetupVisuals();
         SetupPassengerIndicators();
-        UpdateUI();
     }
 
     void SetupVisuals()
@@ -114,8 +102,6 @@ public class BusComponent : MonoBehaviour
             }
         }
 
-        UpdateUI();
-
         // Animasyon tetikle
         if (busAnimator != null)
         {
@@ -123,24 +109,6 @@ public class BusComponent : MonoBehaviour
         }
     }
 
-    void UpdateUI()
-    {
-        if (busInfoText != null)
-        {
-            busInfoText.text = $"{busData.color}\n{busData.currentPassengers}/{busData.capacity}";
-        }
-
-        if (busColorImage != null)
-        {
-            busColorImage.color = GridObject.GetPersonColorValue(busData.color);
-        }
-
-        if (capacitySlider != null)
-        {
-            capacitySlider.maxValue = busData.capacity;
-            capacitySlider.value = busData.currentPassengers;
-        }
-    }
 
     public void SetState(BusState newState)
     {

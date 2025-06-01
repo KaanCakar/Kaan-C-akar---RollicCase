@@ -40,8 +40,6 @@ public class GameManager : MonoBehaviour
     [Header("UI References")]
     public GameObject gameUI;
     public TMPro.TextMeshProUGUI levelText;
-    public TMPro.TextMeshProUGUI statusText;
-    public TMPro.TextMeshProUGUI busInfoText;
     
     private GridManager gridManager;
     private List<GridObject> allPeople = new List<GridObject>();
@@ -86,7 +84,6 @@ public class GameManager : MonoBehaviour
     {
         if (!isGameActive) return;
         
-        UpdateUI();
         CheckWinCondition();
         CheckLoseCondition();
     }
@@ -488,22 +485,6 @@ public class GameManager : MonoBehaviour
         isGameActive = false;
         OnGameLost?.Invoke();
         OnGameMessage?.Invoke($"Game Over: {reason}");
-    }
-    
-    void UpdateUI()
-    {
-        if (statusText != null)
-        {
-            int waitingCount = waitingGrid != null ? waitingGrid.GetOccupiedCount() : 0;
-            int waitingCapacity = waitingGrid != null ? waitingGrid.capacity : 5;
-            
-            statusText.text = $"People: {peopleInBuses}/{totalPeople} | Waiting: {waitingCount}/{waitingCapacity}";
-        }
-        
-        if (busInfoText != null && currentBus != null)
-        {
-            busInfoText.text = $"Bus: {currentBus.color} ({currentBus.currentPassengers}/{currentBus.capacity})";
-        }
     }
     
     // Level data yükleme metodu
