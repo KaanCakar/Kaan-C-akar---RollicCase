@@ -3,14 +3,13 @@ using UnityEngine.Events;
 
 /// <summary>
 /// Kaan Çakar 2025 - GridObject.cs
-/// Component for objects placed on the grid (walls, people,etc.)
-/// Updated with Null Reference Fixes
+/// Component for objects placed on the grid (people only - walls removed)
 /// </summary>
 public class GridObject : MonoBehaviour
 {
     [Header("Grid Object Info")]
     public GridCell gridCell;
-    public GridObjectType objectType;
+    public GridObjectType objectType = GridObjectType.Person;  // Sadece Person kaldı
     public PersonColor personColor = PersonColor.Red;
 
     [Header("Person Settings")]
@@ -180,16 +179,11 @@ public class GridObject : MonoBehaviour
     {
         if (objRenderer == null) return;
 
-        switch (objectType)
+        // Sadece Person tipi kaldı
+        if (objectType == GridObjectType.Person)
         {
-            case GridObjectType.Wall:
-                objRenderer.material.color = Color.gray;
-                break;
-
-            case GridObjectType.Person:
-                UpdatePersonVisual();
-                UpdatePlayableVisual();
-                break;
+            UpdatePersonVisual();
+            UpdatePlayableVisual();
         }
     }
 
@@ -335,6 +329,7 @@ public class GridObject : MonoBehaviour
     {
         return isPlayable && !isInBus && !isInWaitingGrid;
     }
+    
     void OnDrawGizmosSelected()
     {
         if (gridCell != null)

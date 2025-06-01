@@ -31,7 +31,7 @@ public class GridManager : MonoBehaviour
     private GridCell[,] grid;
     private Dictionary<Vector2Int, GridCell> gridDictionary;
     private Camera mainCamera;
-    private bool gridInitialized = false;
+    public bool gridInitialized = false;
 
     public static GridManager Instance { get; private set; }
 
@@ -44,7 +44,7 @@ public class GridManager : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
-            
+
             // Runtime'da grid'i oluştur
             if (Application.isPlaying)
             {
@@ -74,7 +74,8 @@ public class GridManager : MonoBehaviour
         if (!Application.isPlaying && recreateGridOnChange && autoCreateGrid)
         {
             // OnValidate çok sık çağrıldığı için bir frame gecikmeli çağır
-            EditorApplication.delayCall += () => {
+            EditorApplication.delayCall += () =>
+            {
                 if (this != null) // Obje hala varsa
                 {
                     CreateGridInEditor();
@@ -91,11 +92,11 @@ public class GridManager : MonoBehaviour
 
         // Eski grid objelerini temizle
         ClearExistingGrid();
-        
+
         InitializeGrid();
-        
+
         Debug.Log($"Grid created in Editor: {gridWidth}x{gridHeight}");
-        
+
         // Scene'i dirty yap
         EditorUtility.SetDirty(this);
         EditorUtility.SetDirty(gameObject);
@@ -105,12 +106,12 @@ public class GridManager : MonoBehaviour
     public void ClearGrid()
     {
         if (Application.isPlaying) return;
-        
+
         ClearExistingGrid();
         gridInitialized = false;
-        
+
         Debug.Log("Grid cleared");
-        
+
         EditorUtility.SetDirty(this);
         EditorUtility.SetDirty(gameObject);
     }
@@ -119,7 +120,7 @@ public class GridManager : MonoBehaviour
     {
         // Eski grid objelerini bul ve sil
         List<Transform> childrenToDelete = new List<Transform>();
-        
+
         foreach (Transform child in transform)
         {
             if (child.name.StartsWith("GridCell_"))
@@ -127,7 +128,7 @@ public class GridManager : MonoBehaviour
                 childrenToDelete.Add(child);
             }
         }
-        
+
         foreach (Transform child in childrenToDelete)
         {
             if (Application.isPlaying)
@@ -144,8 +145,28 @@ public class GridManager : MonoBehaviour
 
     public void InitializeGrid()
     {
-        if (gridInitialized) return;
+        Debug.Log($"=== InitializeGrid Started ===");
+        Debug.Log($"Current state: gridInitialized={gridInitialized}, gridWidth={gridWidth}, gridHeight={gridHeight}");
 
+        // Force clear previous grid if exists
+        if (gridInitialized)
+        {
+            Debug.Log("Clearing existing grid...");
+            gridInitialized = false;
+            grid = null;
+            gridDictionary = null;
+        }
+
+        // Boyut kontrolü
+        if (gridWidth <= 0 || gridHeight <= 0)
+        {
+            Debug.LogError($"Invalid grid dimensions: {gridWidth}x{gridHeight}");
+            return;
+        }
+
+        Debug.Log($"Creating new grid array: {gridWidth}x{gridHeight}");
+
+        // Yeni grid oluştur
         grid = new GridCell[gridWidth, gridHeight];
         gridDictionary = new Dictionary<Vector2Int, GridCell>();
 
@@ -156,48 +177,104 @@ public class GridManager : MonoBehaviour
             {
                 Vector3 worldPos = GetWorldPosition(x, z);
 
-                // Grid cell objesini oluştur
+                Debug.Log($"Creating cell at ({x}, {z}) - WorldPos: {worldPos}");
+
+                // Grid cell objesini oluştur (optional)
                 GameObject cellObj = null;
+
+                // GridCell component'ini her durumda oluştur
+                GridCell cell = new GridCell(x, z, worldPos, cellObj);
+
+                // Array'e ata
+                grid[x, z] = cell;
+                gridDictionary[new Vector2Int(x, z)] = cell;
+
+                // Prefab varsa 3D obje de oluştur
                 if (gridCellPrefab != null)
                 {
-#if UNITY_EDITOR
-                    if (!Application.isPlaying)
+                    try
                     {
-                        // Editor modunda PrefabUtility kullan
-                        cellObj = PrefabUtility.InstantiatePrefab(gridCellPrefab, transform) as GameObject;
+#if UNITY_EDITOR
+                        if (!Application.isPlaying)
+                        {
+                            // Editor modunda PrefabUtility kullan
+                            cellObj = UnityEditor.PrefabUtility.InstantiatePrefab(gridCellPrefab, transform) as GameObject;
+                        }
+                        else
+#endif
+                        {
+                            // Runtime'da normal Instantiate kullan
+                            cellObj = Instantiate(gridCellPrefab, worldPos, Quaternion.identity, transform);
+                        }
+
                         if (cellObj != null)
                         {
                             cellObj.transform.position = worldPos;
                             cellObj.name = $"GridCell_{x}_{z}";
+
+                            // Cell objesini GridCell'e bağla
+                            cell.cellObject = cellObj;
+
+                            // GridCellComponent ekle
+                            var cellComponent = cellObj.GetComponent<GridCellComponent>();
+                            if (cellComponent == null)
+                                cellComponent = cellObj.AddComponent<GridCellComponent>();
+                            cellComponent.Initialize(cell);
+
+                            Debug.Log($"Cell object created successfully for ({x}, {z})");
                         }
                     }
-                    else
-#endif
+                    catch (System.Exception e)
                     {
-                        // Runtime'da normal Instantiate kullan
-                        cellObj = Instantiate(gridCellPrefab, worldPos, Quaternion.identity, transform);
-                        cellObj.name = $"GridCell_{x}_{z}";
+                        Debug.LogError($"Failed to create cell object at ({x}, {z}): {e.Message}");
+                        // Cell object olmasa da GridCell'i oluştur
                     }
                 }
-
-                // GridCell component'ini oluştur
-                GridCell cell = new GridCell(x, z, worldPos, cellObj);
-                grid[x, z] = cell;
-                gridDictionary[new Vector2Int(x, z)] = cell;
-
-                // Cell objesine GridCell referansını ekle
-                if (cellObj != null)
+                else
                 {
-                    var cellComponent = cellObj.GetComponent<GridCellComponent>();
-                    if (cellComponent == null)
-                        cellComponent = cellObj.AddComponent<GridCellComponent>();
-                    cellComponent.Initialize(cell);
+                    Debug.LogWarning("gridCellPrefab is null, creating cells without 3D objects");
                 }
             }
         }
 
         gridInitialized = true;
-        Debug.Log($"Grid initialized: {gridWidth}x{gridHeight} cells");
+        Debug.Log($"=== Grid initialization completed ===");
+        Debug.Log($"Final state: gridInitialized={gridInitialized}, Total cells: {gridWidth * gridHeight}");
+
+        // Test: İlk birkaç cell'i kontrol et
+        for (int x = 0; x < Mathf.Min(3, gridWidth); x++)
+        {
+            for (int z = 0; z < Mathf.Min(3, gridHeight); z++)
+            {
+                GridCell testCell = grid[x, z];
+                Debug.Log($"Test cell ({x}, {z}): {(testCell != null ? "OK" : "NULL")}");
+            }
+        }
+
+        // Editor'da dirty yap
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            UnityEditor.EditorUtility.SetDirty(this);
+        }
+#endif
+    }
+
+    // ForceGridRecreation metodunu da güncelle:
+    public void ForceGridRecreation()
+    {
+        Debug.Log("Force recreating grid...");
+        gridInitialized = false;
+
+#if UNITY_EDITOR
+        // Eski cell objelerini temizle
+        if (!Application.isPlaying)
+        {
+            ClearExistingGrid();
+        }
+#endif
+
+        InitializeGrid();
     }
 
     // Grid koordinatlarını dünya pozisyonuna çevir
@@ -218,6 +295,13 @@ public class GridManager : MonoBehaviour
     // Grid cell'ini al
     public GridCell GetCell(int x, int z)
     {
+        // NULL CHECK: Grid initialize edilmiş mi?
+        if (grid == null || !gridInitialized)
+        {
+            Debug.LogWarning("Grid is not initialized yet. Call InitializeGrid() first.");
+            return null;
+        }
+
         if (IsValidPosition(x, z))
             return grid[x, z];
         return null;
@@ -231,6 +315,10 @@ public class GridManager : MonoBehaviour
     // Pozisyon geçerli mi kontrol et
     public bool IsValidPosition(int x, int z)
     {
+        // NULL CHECK: Grid boyutları geçerli mi?
+        if (grid == null)
+            return false;
+
         return x >= 0 && x < gridWidth && z >= 0 && z < gridHeight;
     }
 
@@ -351,20 +439,47 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    // Editor için yardımcı metodlar
-    public void ForceGridRecreation()
-    {
-        gridInitialized = false;
-        InitializeGrid();
-    }
-
     // Grid durumunu kontrol etme metodu
     public bool ValidateGrid()
     {
         if (!gridInitialized) return false;
         if (grid == null) return false;
         if (grid.GetLength(0) != gridWidth || grid.GetLength(1) != gridHeight) return false;
-        
+
         return true;
     }
+#if UNITY_EDITOR
+    [UnityEditor.CustomEditor(typeof(GridManager))]
+    public class GridManagerEditor : UnityEditor.Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            DrawDefaultInspector();
+
+            GridManager gridManager = (GridManager)target;
+
+            UnityEditor.EditorGUILayout.Space(10);
+            UnityEditor.EditorGUILayout.LabelField("Grid Controls", UnityEditor.EditorStyles.boldLabel);
+
+            if (!gridManager.IsGridInitialized)
+            {
+                if (GUILayout.Button("Initialize Grid"))
+                {
+                    gridManager.InitializeGrid();
+                    UnityEditor.EditorUtility.SetDirty(gridManager);
+                }
+            }
+            else
+            {
+                UnityEditor.EditorGUILayout.LabelField($"Grid Status: Initialized ({gridManager.gridWidth}x{gridManager.gridHeight})");
+
+                if (GUILayout.Button("Force Recreate Grid"))
+                {
+                    gridManager.ForceGridRecreation();
+                    UnityEditor.EditorUtility.SetDirty(gridManager);
+                }
+            }
+        }
+    }
+#endif
 }

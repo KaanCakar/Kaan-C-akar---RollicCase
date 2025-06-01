@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Kaan Çakar 2025 - GridCell.cs
-/// Represents a single cell in the grid.
+/// Represents a single cell in the grid with shape drawing support.
 /// </summary>
 
 [System.Serializable]
@@ -12,94 +12,175 @@ public class GridCell
     public int x;
     public int z;
     public Vector3 worldPosition;
-    
+
     [Header("State")]
     public bool IsWalkable = true;
     public bool IsOccupied = false;
-    
+
+    [Header("Play Area System")]
+    public bool isPlayArea = true;      // Bu hücre oynanabilir alan mı?
+    public bool isVisible = true;       // Bu hücre görünür mü?
+
     [Header("References")]
     public GameObject cellObject;
     public GameObject occupyingObject;
-    
+
     [Header("Properties")]
     public float movementCost = 1f;
-    
+
     public GridCell(int x, int z, Vector3 worldPos, GameObject cellObj = null)
     {
         this.x = x;
         this.z = z;
         this.worldPosition = worldPos;
         this.cellObject = cellObj;
+        this.isPlayArea = true;  // Default: oynanabilir
+        this.isVisible = true;   // Default: görünür
     }
-    
+
     public Vector2Int GetGridPosition()
     {
         return new Vector2Int(x, z);
     }
-    
+
     public void SetOccupied(GameObject obj)
     {
         IsOccupied = true;
         occupyingObject = obj;
-        IsWalkable = false; // Hem duvar hem insan için yürünemez
+        // NOT: Wall sistemi kaldırıldığı için IsWalkable'ı sadece person için false yapıyoruz
+        if (obj != null && obj.GetComponent<GridObject>()?.objectType == GridObjectType.Person)
+        {
+            IsWalkable = false;
+        }
     }
-    
+
     public void SetEmpty()
     {
         IsOccupied = false;
         occupyingObject = null;
-        IsWalkable = true; // Boş hücre her zaman yürünebilir
+        IsWalkable = true;
     }
-    
+
     public bool CanMoveTo()
     {
-        return IsWalkable && !IsOccupied;
+        return IsWalkable && !IsOccupied && isPlayArea && isVisible;
     }
-    
+
     public void SetWalkable(bool walkable)
     {
         IsWalkable = walkable;
-        
-        // Görsel feedback
+        UpdateVisual();
+    }
+
+    // Play area sistemini ayarla
+    public void SetPlayArea(bool playArea)
+    {
+        isPlayArea = playArea;
+        UpdateVisual();
+    }
+
+    public void SetVisible(bool visible)
+    {
+        isVisible = visible;
+
+        // Cell objesini aktif/pasif yap
         if (cellObject != null)
         {
-            var renderer = cellObject.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material.color = walkable ? Color.white : Color.red;
-            }
+            cellObject.SetActive(visible);
         }
+
+        UpdateVisual();
     }
-    
     public void HighlightCell(bool highlight, Color color = default)
     {
-        if (cellObject != null)
+        if (!isVisible || cellObject == null) return;
+
+        var renderer = cellObject.GetComponent<Renderer>();
+        if (renderer != null)
         {
-            var renderer = cellObject.GetComponent<Renderer>();
-            if (renderer != null)
+            if (highlight)
             {
-                if (highlight)
+                Color highlightColor = color == default ? Color.yellow : color;
+
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
                 {
-                    Color highlightColor = color == default ? Color.yellow : color;
-                    renderer.material.color = highlightColor;
+                    // Editör modunda
+                    if (renderer.sharedMaterial != null)
+                    {
+                        var material = new Material(renderer.sharedMaterial);
+                        material.color = highlightColor;
+                        renderer.sharedMaterial = material;
+                    }
                 }
                 else
+#endif
                 {
-                    // Normal renge dön
-                    renderer.material.color = IsWalkable ? Color.white : Color.red;
+                    // Runtime'da
+                    renderer.material.color = highlightColor;
                 }
+            }
+            else
+            {
+                UpdateVisual();
             }
         }
     }
-    
-    // Level design için yardımcı metodlar
-    public bool HasWall()
+
+    private void UpdateVisual()
     {
-        return IsOccupied && occupyingObject != null && occupyingObject.CompareTag("Wall");
+        if (!isVisible || cellObject == null) return;
+
+        var renderer = cellObject.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            Color targetColor = Color.white;
+
+            if (!isPlayArea)
+            {
+                targetColor = Color.gray;  // Oynanabilir olmayan alan
+            }
+            else if (!IsWalkable)
+            {
+                targetColor = Color.red;   // Yürünemez alan
+            }
+            else if (IsOccupied)
+            {
+                targetColor = Color.blue;  // İşgal edilmiş alan
+            }
+
+            // EDITOR MODUNDA: sharedMaterial kullan, material leak'i önle
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                // Editör modunda material leak'i önlemek için
+                if (renderer.sharedMaterial != null)
+                {
+                    var material = new Material(renderer.sharedMaterial);
+                    material.color = targetColor;
+                    renderer.sharedMaterial = material;
+                }
+            }
+            else
+#endif
+            {
+                // Runtime'da normal material kullan
+                renderer.material.color = targetColor;
+            }
+        }
     }
-    
+
+
+    // Level design için yardımcı metodlar
     public bool HasPerson()
     {
-        return IsOccupied && occupyingObject != null && occupyingObject.CompareTag("Player");
+        return IsOccupied && occupyingObject != null &&
+               occupyingObject.GetComponent<GridObject>()?.objectType == GridObjectType.Person;
+    }
+
+    // Oynanabilir alan mı kontrol et
+    public bool IsInPlayArea()
+    {
+        return isPlayArea && isVisible;
     }
 }
