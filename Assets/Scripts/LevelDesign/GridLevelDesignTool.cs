@@ -4,8 +4,7 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Kaan Çakar 2025 - GridLevelDesignTool.cs
-/// Unity Editor tool for designing grid-based puzzle levels with shape drawing support
-/// Complete and Final Version
+/// Complete final version - Simplified with erase session system
 /// </summary>
 
 #if UNITY_EDITOR
@@ -14,11 +13,17 @@ public class GridLevelDesignTool : Editor
 {
     private GridManager gridManager;
     private bool isEditingMode = false;
-    private EditMode currentEditMode = EditMode.DrawPlayArea;
+    private EditMode currentEditMode = EditMode.ErasePlayArea;
     private PersonColor selectedPersonColor = PersonColor.Red;
     private bool showToolbar = true;
 
-    // Shape drawing system
+    // Erase session system - ONLY UNDO SYSTEM
+    private GridSnapshot eraseUndoSnapshot = null;
+    private bool isInEraseSession = false;
+    private float lastEraseTime = 0f;
+    private const float eraseSessionTimeout = 3f;
+
+    // Brush settings
     private bool isDragging = false;
     private Vector2Int lastPaintedCell = Vector2Int.one * -1;
     private int brushSize = 1;
@@ -37,8 +42,8 @@ public class GridLevelDesignTool : Editor
     private Vector2 toolbarScrollPos;
     private Color[] personColors = {
         Color.red, Color.blue, Color.green, Color.yellow, Color.magenta,
-        Color.cyan, Color.white, new Color(1f, 0.4f, 0.7f), new Color(1f, 0.5f, 0f), // Pink, Orange
-        new Color(0.5f, 0f, 1f) // Purple
+        Color.cyan, Color.white, new Color(1f, 0.4f, 0.7f), new Color(1f, 0.5f, 0f),
+        new Color(0.5f, 0f, 1f)
     };
 
     private string[] colorNames = {
@@ -61,7 +66,6 @@ public class GridLevelDesignTool : Editor
 
     void LoadPrefabReferences()
     {
-        // Prefabları Resources klasöründen yükle
         for (int i = 0; i < 10; i++)
         {
             personPrefabs[i] = Resources.Load<GameObject>($"Prefabs/Person_{i}");
@@ -72,10 +76,185 @@ public class GridLevelDesignTool : Editor
     {
         if (busSequence.Count == 0)
         {
-            // Default bus sequence - sadece bir otobüs
             busSequence.Add(new BusData { color = PersonColor.Red, capacity = 3 });
         }
     }
+
+    // === ERASE SESSION UNDO SYSTEM ===
+    [System.Serializable]
+    public class GridSnapshot
+    {
+        public List<PlayAreaCellData> playAreaData;
+        public List<GridObjectData> objectData;
+        public string actionName;
+
+        public GridSnapshot(GridManager gridManager, string action)
+        {
+            actionName = action;
+            playAreaData = new List<PlayAreaCellData>();
+            objectData = new List<GridObjectData>();
+
+            if (gridManager.IsGridInitialized)
+            {
+                for (int x = 0; x < gridManager.gridWidth; x++)
+                {
+                    for (int z = 0; z < gridManager.gridHeight; z++)
+                    {
+                        GridCell cell = gridManager.GetCell(x, z);
+                        if (cell != null)
+                        {
+                            playAreaData.Add(new PlayAreaCellData
+                            {
+                                x = x,
+                                z = z,
+                                isPlayArea = cell.isPlayArea,
+                                isVisible = cell.isVisible
+                            });
+
+                            if (cell.occupyingObject != null)
+                            {
+                                var gridObject = cell.occupyingObject.GetComponent<GridObject>();
+                                if (gridObject != null)
+                                {
+                                    objectData.Add(new GridObjectData
+                                    {
+                                        x = x,
+                                        z = z,
+                                        objectType = gridObject.objectType,
+                                        personColor = gridObject.personColor
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void SaveEraseUndoSnapshot(string actionName)
+    {
+        if (gridManager == null || !gridManager.IsGridInitialized)
+        {
+            Debug.LogError("Cannot save undo snapshot: Grid not ready!");
+            return;
+        }
+
+        try
+        {
+            eraseUndoSnapshot = new GridSnapshot(gridManager, actionName);
+            isInEraseSession = false;
+            Debug.Log($"Saved erase undo: {actionName} with {eraseUndoSnapshot.playAreaData?.Count ?? 0} cells");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error saving undo snapshot: {e.Message}");
+            eraseUndoSnapshot = null;
+        }
+    }
+
+    void StartEraseSessionIfNeeded(string actionName)
+    {
+        float currentTime = (float)EditorApplication.timeSinceStartup;
+
+        if (!isInEraseSession || (currentTime - lastEraseTime) > eraseSessionTimeout)
+        {
+            SaveEraseUndoSnapshot(actionName);
+            isInEraseSession = true;
+            Debug.Log($"Started new erase session: {actionName}");
+        }
+
+        lastEraseTime = currentTime;
+    }
+
+    void PerformEraseUndo()
+    {
+        if (eraseUndoSnapshot == null)
+        {
+            EditorUtility.DisplayDialog("Undo", "No erase action to undo!", "OK");
+            return;
+        }
+
+        Debug.Log($"Performing erase undo: {eraseUndoSnapshot.actionName}");
+
+        try
+        {
+            ApplySnapshot(eraseUndoSnapshot);
+            EditorUtility.DisplayDialog("Undo", $"Undid: {eraseUndoSnapshot.actionName}", "OK");
+            eraseUndoSnapshot = null;
+            isInEraseSession = false;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Error in PerformEraseUndo: {e.Message}");
+            EditorUtility.DisplayDialog("Error", $"Undo failed: {e.Message}", "OK");
+        }
+    }
+
+    void ApplySnapshot(GridSnapshot snapshot)
+    {
+        if (gridManager == null)
+        {
+            Debug.LogError("GridManager is null in ApplySnapshot!");
+            EditorUtility.DisplayDialog("Error", "GridManager is null!", "OK");
+            return;
+        }
+
+        if (snapshot == null)
+        {
+            Debug.LogError("Snapshot is null in ApplySnapshot!");
+            EditorUtility.DisplayDialog("Error", "Snapshot is null!", "OK");
+            return;
+        }
+
+        if (!gridManager.IsGridInitialized)
+        {
+            Debug.LogError("Grid is not initialized in ApplySnapshot!");
+            EditorUtility.DisplayDialog("Error", "Grid is not initialized!", "OK");
+            return;
+        }
+
+        Debug.Log($"Applying snapshot: {snapshot.actionName}");
+
+        ClearAllObjectsQuiet();
+
+        if (snapshot.playAreaData != null)
+        {
+            foreach (var areaData in snapshot.playAreaData)
+            {
+                if (areaData == null) continue;
+
+                GridCell cell = gridManager.GetCell(areaData.x, areaData.z);
+                if (cell != null)
+                {
+                    cell.SetPlayArea(areaData.isPlayArea);
+                    cell.SetVisible(areaData.isVisible);
+                }
+            }
+        }
+
+        if (snapshot.objectData != null)
+        {
+            foreach (var objData in snapshot.objectData)
+            {
+                if (objData == null) continue;
+
+                GridCell cell = gridManager.GetCell(objData.x, objData.z);
+                if (cell != null && cell.isPlayArea)
+                {
+                    var oldColor = selectedPersonColor;
+                    selectedPersonColor = objData.personColor;
+                    PlaceObjectInCell(cell);
+                    selectedPersonColor = oldColor;
+                }
+            }
+        }
+
+        EditorUtility.SetDirty(gridManager);
+        SceneView.RepaintAll();
+        Debug.Log("ApplySnapshot completed successfully");
+    }
+
     void DrawBusSettings()
     {
         EditorGUILayout.Space(10);
@@ -88,7 +267,6 @@ public class GridLevelDesignTool : Editor
             EditorGUILayout.LabelField("Configure Bus Order and Properties:", EditorStyles.miniBoldLabel);
             EditorGUILayout.Space(5);
 
-            // Bus addition controls
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Add Bus:", GUILayout.Width(60));
             selectedBusColor = (PersonColor)EditorGUILayout.EnumPopup(selectedBusColor, GUILayout.Width(80));
@@ -104,7 +282,6 @@ public class GridLevelDesignTool : Editor
 
             EditorGUILayout.Space(5);
 
-            // Bus sequence list
             if (busSequence.Count > 0)
             {
                 EditorGUILayout.LabelField($"Bus Sequence ({busSequence.Count} buses):", EditorStyles.miniBoldLabel);
@@ -115,18 +292,14 @@ public class GridLevelDesignTool : Editor
                 {
                     EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
 
-                    // Bus order number
                     EditorGUILayout.LabelField($"{i + 1}.", GUILayout.Width(20));
 
-                    // Color preview
                     Rect colorRect = GUILayoutUtility.GetRect(20, 20, GUILayout.Width(20));
                     EditorGUI.DrawRect(colorRect, personColors[(int)busSequence[i].color]);
 
-                    // Bus info
                     EditorGUILayout.LabelField($"{colorNames[(int)busSequence[i].color]} Bus", GUILayout.Width(80));
                     EditorGUILayout.LabelField($"Cap: {busSequence[i].capacity}", GUILayout.Width(45));
 
-                    // Edit capacity
                     int newCapacity = EditorGUILayout.IntSlider(busSequence[i].capacity, 1, 6, GUILayout.Width(80));
                     if (newCapacity != busSequence[i].capacity)
                     {
@@ -136,7 +309,6 @@ public class GridLevelDesignTool : Editor
                         EditorUtility.SetDirty(gridManager);
                     }
 
-                    // Move up/down buttons
                     GUI.enabled = i > 0;
                     if (GUILayout.Button("↑", GUILayout.Width(25)))
                     {
@@ -151,7 +323,6 @@ public class GridLevelDesignTool : Editor
 
                     GUI.enabled = true;
 
-                    // Remove button
                     if (GUILayout.Button("×", GUILayout.Width(25)))
                     {
                         RemoveBusFromSequence(i);
@@ -168,7 +339,6 @@ public class GridLevelDesignTool : Editor
                 EditorGUILayout.HelpBox("No buses in sequence. Add at least one bus to start the level.", MessageType.Warning);
             }
 
-            // Action buttons
             EditorGUILayout.Space(5);
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Clear All Buses"))
@@ -187,40 +357,86 @@ public class GridLevelDesignTool : Editor
 
     void DrawShapeSettings()
     {
-        EditorGUILayout.LabelField("Shape Drawing", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Grid Editing", EditorStyles.boldLabel);
 
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Toggle(currentEditMode == EditMode.DrawPlayArea, "Draw Play Area", EditorStyles.miniButtonLeft))
-            currentEditMode = EditMode.DrawPlayArea;
-        if (GUILayout.Toggle(currentEditMode == EditMode.ErasePlayArea, "Erase Play Area", EditorStyles.miniButtonRight))
+        if (GUILayout.Toggle(currentEditMode == EditMode.ErasePlayArea, "Erase Play Area", EditorStyles.miniButtonLeft))
             currentEditMode = EditMode.ErasePlayArea;
+        if (GUILayout.Toggle(currentEditMode == EditMode.PlacePerson, "Place Person", EditorStyles.miniButtonRight))
+            currentEditMode = EditMode.PlacePerson;
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.Space(5);
 
-        // Brush size
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Brush Size:", GUILayout.Width(70));
-        brushSize = EditorGUILayout.IntSlider(brushSize, 1, 5);
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.Space(5);
-
-        // Shape tools
-        EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("Fill All"))
+        if (currentEditMode == EditMode.ErasePlayArea)
         {
-            FillAllPlayArea(true);
+            EditorGUILayout.LabelField("Click cells to remove from play area", EditorStyles.helpBox);
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Brush Size:", GUILayout.Width(70));
+            brushSize = EditorGUILayout.IntSlider(brushSize, 1, 5);
+            EditorGUILayout.EndHorizontal();
+        }
+        else
+        {
+            EditorGUILayout.LabelField("Click on play area cells to place people", EditorStyles.helpBox);
+        }
+
+        EditorGUILayout.Space(5);
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Fill All (12x12)"))
+        {
+            SaveEraseUndoSnapshot("Fill All 12x12");
+            CreateFullGrid();
         }
         if (GUILayout.Button("Clear All"))
         {
+            SaveEraseUndoSnapshot("Clear All");
             FillAllPlayArea(false);
         }
-        if (GUILayout.Button("Invert"))
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(5);
+
+        EditorGUILayout.BeginHorizontal();
+        GUI.enabled = eraseUndoSnapshot != null;
+
+        string undoButtonText = "Undo Erase Action";
+        if (eraseUndoSnapshot != null)
         {
-            InvertPlayArea();
+            undoButtonText = $"Undo: {eraseUndoSnapshot.actionName}";
+        }
+
+        if (GUILayout.Button(undoButtonText, GUILayout.Height(25)))
+        {
+            PerformEraseUndo();
+        }
+        GUI.enabled = true;
+
+        if (GUILayout.Button("Clear Undo"))
+        {
+            eraseUndoSnapshot = null;
+            isInEraseSession = false;
+            Debug.Log("Erase undo cleared");
         }
         EditorGUILayout.EndHorizontal();
+
+        if (isInEraseSession)
+        {
+            EditorGUILayout.LabelField("✏️ Erase session active - multiple erases will be undone together", EditorStyles.helpBox);
+        }
+    }
+
+    void CreateFullGrid()
+    {
+        if (gridManager == null) return;
+
+        gridManager.gridWidth = 12;
+        gridManager.gridHeight = 12;
+        gridManager.ForceGridRecreation();
+
+        FillAllPlayArea(true);
     }
 
     void DrawPersonSettings()
@@ -236,7 +452,6 @@ public class GridLevelDesignTool : Editor
             EditorGUILayout.LabelField("Person Color:", EditorStyles.miniBoldLabel);
             selectedPersonColor = (PersonColor)EditorGUILayout.EnumPopup(selectedPersonColor);
 
-            // Color preview
             Rect colorRect = GUILayoutUtility.GetRect(50, 20);
             EditorGUI.DrawRect(colorRect, personColors[(int)selectedPersonColor]);
         }
@@ -246,6 +461,7 @@ public class GridLevelDesignTool : Editor
     {
         if (GUILayout.Button("Clear All Objects"))
         {
+            SaveEraseUndoSnapshot("Clear All Objects");
             ClearAllObjects();
         }
 
@@ -260,225 +476,73 @@ public class GridLevelDesignTool : Editor
             LoadLevelLayout();
         }
         EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(5);
+
+        EditorGUILayout.LabelField("Play Area Controls", EditorStyles.boldLabel);
+
+        if (GUILayout.Button("Save Current Play Area State", GUILayout.Height(25)))
+        {
+            gridManager.SaveCurrentPlayAreaState();
+            EditorUtility.DisplayDialog("Play Area Saved",
+                $"Saved {gridManager.runtimePlayAreaData.Count} play area entries", "OK");
+        }
+
+        if (gridManager.runtimePlayAreaData != null)
+        {
+            EditorGUILayout.LabelField($"Saved Play Area Entries: {gridManager.runtimePlayAreaData.Count}", EditorStyles.helpBox);
+        }
     }
 
     void DrawHelpBox()
     {
         EditorGUILayout.HelpBox(
-            "SHAPE DRAWING: Click and drag to draw/erase play areas.\n" +
-            "PERSON PLACEMENT: Click on play area cells to place people.\n" +
-            "Hold Shift to remove objects.\n" +
-            "Use brush size to paint larger areas at once.",
+            "SIMPLIFIED WORKFLOW:\n" +
+            "1. Click 'Fill All (12x12)' to create full grid\n" +
+            "2. Use 'Erase Play Area' mode to remove unwanted cells\n" +
+            "3. Switch to 'Place Person' to add people\n" +
+            "4. Use Undo if you make mistakes\n" +
+            "5. Save Play Area State before testing\n" +
+            "Hold Shift to remove objects.",
             MessageType.Info
         );
     }
 
-    // === SHAPE DRAWING METHODS ===
     void FillAllPlayArea(bool playArea)
     {
-        Debug.Log("=== FillAllPlayArea Started ===");
-
-        // Grid manager kontrolü
         if (gridManager == null)
         {
-            Debug.LogError("GridManager is null!");
             EditorUtility.DisplayDialog("Error", "GridManager not found!", "OK");
             return;
         }
 
-        Debug.Log($"GridManager found. IsGridInitialized: {gridManager.IsGridInitialized}");
-        Debug.Log($"Grid dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}");
-
-        // Grid initialize edilmiş mi kontrol et
         if (!gridManager.IsGridInitialized)
         {
-            Debug.Log("Grid not initialized, attempting to initialize...");
-
-            // Önce boyutları kontrol et
             if (gridManager.gridWidth <= 0 || gridManager.gridHeight <= 0)
             {
-                Debug.LogError($"Invalid grid dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}");
                 EditorUtility.DisplayDialog("Error",
-                    $"Invalid grid dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}\nPlease set valid dimensions first.", "OK");
+                    $"Invalid grid dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}", "OK");
                 return;
             }
 
-            // Initialize et
             gridManager.InitializeGrid();
 
-            // Tekrar kontrol et
             if (!gridManager.IsGridInitialized)
             {
-                Debug.LogError("Failed to initialize grid!");
                 EditorUtility.DisplayDialog("Error", "Failed to initialize grid!", "OK");
                 return;
             }
-
-            Debug.Log("Grid successfully initialized!");
         }
-
-        Debug.Log($"Filling grid with playArea={playArea}");
-
-        int processedCells = 0;
-        int successfulCells = 0;
 
         for (int x = 0; x < gridManager.gridWidth; x++)
         {
             for (int z = 0; z < gridManager.gridHeight; z++)
             {
-                processedCells++;
                 GridCell cell = gridManager.GetCell(x, z);
                 if (cell != null)
                 {
                     cell.SetPlayArea(playArea);
                     cell.SetVisible(playArea);
-                    successfulCells++;
-                }
-                else
-                {
-                    Debug.LogWarning($"Cell at ({x}, {z}) is null!");
-                }
-            }
-        }
-
-        Debug.Log($"FillAllPlayArea completed. Processed: {processedCells}, Successful: {successfulCells}");
-
-        EditorUtility.SetDirty(gridManager);
-        SceneView.RepaintAll();
-
-        Debug.Log("=== FillAllPlayArea Finished ===");
-    }
-
-    // OnInspectorGUI'ye de debug ekle
-    public override void OnInspectorGUI()
-    {
-        DrawDefaultInspector();
-
-        EditorGUILayout.Space(10);
-        EditorGUILayout.LabelField("Level Design Tool", EditorStyles.boldLabel);
-
-        // === EMERGENCY GRID FIX ===
-        if (gridManager != null)
-        {
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            EditorGUILayout.LabelField("Grid Status:", EditorStyles.boldLabel);
-
-            EditorGUILayout.LabelField($"• Initialized: {gridManager.IsGridInitialized}");
-            EditorGUILayout.LabelField($"• Dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}");
-
-            // Test birkaç cell
-            if (gridManager.IsGridInitialized)
-            {
-                int nullCells = 0;
-                for (int x = 0; x < Mathf.Min(5, gridManager.gridWidth); x++)
-                {
-                    for (int z = 0; z < Mathf.Min(5, gridManager.gridHeight); z++)
-                    {
-                        if (gridManager.GetCell(x, z) == null) nullCells++;
-                    }
-                }
-
-                if (nullCells > 0)
-                {
-                    EditorGUILayout.LabelField($"• Problem: {nullCells} null cells detected!", EditorStyles.miniLabel);
-                    GUI.color = Color.red;
-                }
-                else
-                {
-                    EditorGUILayout.LabelField("• Status: Grid cells OK", EditorStyles.miniLabel);
-                    GUI.color = Color.green;
-                }
-            }
-
-            GUI.color = Color.white;
-
-            EditorGUILayout.Space(5);
-
-            // Emergency buttons
-            EditorGUILayout.BeginHorizontal();
-
-            if (GUILayout.Button("FORCE INITIALIZE", GUILayout.Height(25)))
-            {
-                Debug.Log("=== FORCE INITIALIZE REQUESTED ===");
-                gridManager.gridInitialized = false; // Force reset
-                gridManager.InitializeGrid();
-                EditorUtility.SetDirty(gridManager);
-            }
-
-            if (GUILayout.Button("RECREATE GRID", GUILayout.Height(25)))
-            {
-                Debug.Log("=== RECREATE GRID REQUESTED ===");
-                gridManager.ForceGridRecreation();
-                EditorUtility.SetDirty(gridManager);
-            }
-
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.EndVertical();
-        }
-        else
-        {
-            EditorGUILayout.HelpBox("GridManager not found!", MessageType.Error);
-            return;
-        }
-
-        EditorGUILayout.Space(5);
-
-        // Editing mode toggle
-        bool newEditingMode = EditorGUILayout.Toggle("Enable Editing Mode", isEditingMode);
-        if (newEditingMode != isEditingMode)
-        {
-            isEditingMode = newEditingMode;
-            SceneView.RepaintAll();
-        }
-
-        if (!isEditingMode) return;
-
-        // Geri kalan kodlar...
-        DrawBusSettings();
-        EditorGUILayout.Space(5);
-        DrawShapeSettings();
-        EditorGUILayout.Space(5);
-        DrawPersonSettings();
-        EditorGUILayout.Space(10);
-        DrawActionButtons();
-        EditorGUILayout.Space(5);
-        DrawHelpBox();
-    }
-
-    void InvertPlayArea()
-    {
-        // Grid kontrolü
-        if (gridManager == null)
-        {
-            EditorUtility.DisplayDialog("Error", "GridManager not found!", "OK");
-            return;
-        }
-
-        // Grid initialize edilmiş mi kontrol et
-        if (!gridManager.IsGridInitialized)
-        {
-            if (EditorUtility.DisplayDialog("Grid Not Initialized",
-                "Grid is not initialized. Do you want to initialize it now?",
-                "Yes", "Cancel"))
-            {
-                gridManager.InitializeGrid();
-            }
-            else
-            {
-                return;
-            }
-        }
-
-        for (int x = 0; x < gridManager.gridWidth; x++)
-        {
-            for (int z = 0; z < gridManager.gridHeight; z++)
-            {
-                GridCell cell = gridManager.GetCell(x, z);
-                if (cell != null)
-                {
-                    bool newState = !cell.isPlayArea;
-                    cell.SetPlayArea(newState);
-                    cell.SetVisible(newState);
                 }
             }
         }
@@ -489,7 +553,6 @@ public class GridLevelDesignTool : Editor
 
     void PaintPlayArea(Vector2Int gridPos, bool playArea)
     {
-        // Grid kontrolü
         if (gridManager == null || !gridManager.IsGridInitialized)
             return;
 
@@ -552,7 +615,6 @@ public class GridLevelDesignTool : Editor
 
     void GenerateBusesFromGrid()
     {
-        // Grid'deki mevcut renkleri analiz et ve onlara göre otobüs ekle
         var usedColors = new HashSet<PersonColor>();
 
         for (int x = 0; x < gridManager.gridWidth; x++)
@@ -571,10 +633,8 @@ public class GridLevelDesignTool : Editor
             }
         }
 
-        // Mevcut otobüsleri temizle
         busSequence.Clear();
 
-        // Her renk için otobüs ekle
         foreach (var color in usedColors)
         {
             busSequence.Add(new BusData { color = color, capacity = 3 });
@@ -641,7 +701,6 @@ public class GridLevelDesignTool : Editor
 
             if (gridManager.IsValidPosition(gridPos))
             {
-                // Aynı hücreyi tekrar tekrar boyama
                 if (gridPos == lastPaintedCell) return;
                 lastPaintedCell = gridPos;
 
@@ -651,17 +710,17 @@ public class GridLevelDesignTool : Editor
                 {
                     bool isRemoving = e.shift;
 
-                    if (currentEditMode == EditMode.DrawPlayArea)
+                    if (!isDragging && currentEditMode == EditMode.ErasePlayArea)
                     {
-                        PaintPlayArea(gridPos, !isRemoving);
+                        StartEraseSessionIfNeeded("Manual Erase Session");
                     }
-                    else if (currentEditMode == EditMode.ErasePlayArea)
+
+                    if (currentEditMode == EditMode.ErasePlayArea)
                     {
-                        PaintPlayArea(gridPos, isRemoving);
+                        PaintPlayArea(gridPos, false);
                     }
                     else if (currentEditMode == EditMode.PlacePerson)
                     {
-                        // Sadece oynanabilir alanlarda insan yerleştir
                         if (cell.isPlayArea)
                         {
                             if (isRemoving)
@@ -728,12 +787,11 @@ public class GridLevelDesignTool : Editor
     {
         Handles.BeginGUI();
 
-        GUILayout.BeginArea(new Rect(10, 10, 400, 250));
+        GUILayout.BeginArea(new Rect(10, 10, 400, 260));
         GUILayout.BeginVertical(GUI.skin.box);
 
         GUILayout.Label("Grid Level Design Tool", EditorStyles.boldLabel);
 
-        // Bus sequence preview in scene
         if (busSequence.Count > 0)
         {
             GUILayout.Label($"Bus Sequence ({busSequence.Count}):", EditorStyles.miniBoldLabel);
@@ -754,18 +812,14 @@ public class GridLevelDesignTool : Editor
 
         GUILayout.Space(5);
 
-        // Mode selection
         GUILayout.BeginHorizontal();
-        if (GUILayout.Toggle(currentEditMode == EditMode.DrawPlayArea, "Draw", EditorStyles.miniButtonLeft))
-            currentEditMode = EditMode.DrawPlayArea;
-        if (GUILayout.Toggle(currentEditMode == EditMode.ErasePlayArea, "Erase", EditorStyles.miniButtonMid))
+        if (GUILayout.Toggle(currentEditMode == EditMode.ErasePlayArea, "Erase", EditorStyles.miniButtonLeft))
             currentEditMode = EditMode.ErasePlayArea;
         if (GUILayout.Toggle(currentEditMode == EditMode.PlacePerson, "Person", EditorStyles.miniButtonRight))
             currentEditMode = EditMode.PlacePerson;
         GUILayout.EndHorizontal();
 
-        // Brush size for shape drawing
-        if (currentEditMode == EditMode.DrawPlayArea || currentEditMode == EditMode.ErasePlayArea)
+        if (currentEditMode == EditMode.ErasePlayArea)
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label("Brush:", GUILayout.Width(40));
@@ -773,7 +827,6 @@ public class GridLevelDesignTool : Editor
             GUILayout.EndHorizontal();
         }
 
-        // Person color selection for scene toolbar
         if (currentEditMode == EditMode.PlacePerson)
         {
             GUILayout.Label("Color:", EditorStyles.miniBoldLabel);
@@ -804,6 +857,27 @@ public class GridLevelDesignTool : Editor
             GUILayout.EndHorizontal();
         }
 
+        GUILayout.Space(3);
+
+        GUI.enabled = eraseUndoSnapshot != null;
+
+        string sceneUndoText = "Undo Erase";
+        if (eraseUndoSnapshot != null)
+        {
+            sceneUndoText = $"Undo: {eraseUndoSnapshot.actionName}";
+        }
+
+        if (GUILayout.Button(sceneUndoText, GUILayout.Height(22)))
+        {
+            PerformEraseUndo();
+        }
+        GUI.enabled = true;
+
+        if (isInEraseSession)
+        {
+            GUILayout.Label("✏️ Erase session", EditorStyles.miniLabel);
+        }
+
         GUILayout.Label("Shift + Click to remove", EditorStyles.miniLabel);
 
         GUILayout.EndVertical();
@@ -819,20 +893,25 @@ public class GridLevelDesignTool : Editor
             "Are you sure you want to clear all placed objects from the grid?",
             "Yes", "Cancel"))
         {
-            for (int x = 0; x < gridManager.gridWidth; x++)
+            ClearAllObjectsQuiet();
+        }
+    }
+
+    void ClearAllObjectsQuiet()
+    {
+        for (int x = 0; x < gridManager.gridWidth; x++)
+        {
+            for (int z = 0; z < gridManager.gridHeight; z++)
             {
-                for (int z = 0; z < gridManager.gridHeight; z++)
+                GridCell cell = gridManager.GetCell(x, z);
+                if (cell != null)
                 {
-                    GridCell cell = gridManager.GetCell(x, z);
-                    if (cell != null)
-                    {
-                        RemoveObjectFromCell(cell);
-                    }
+                    RemoveObjectFromCell(cell);
                 }
             }
-
-            EditorUtility.SetDirty(gridManager);
         }
+
+        EditorUtility.SetDirty(gridManager);
     }
 
     void SaveLevelLayout()
@@ -873,7 +952,7 @@ public class GridLevelDesignTool : Editor
         levelData.gridHeight = gridManager.gridHeight;
         levelData.objects = new List<GridObjectData>();
         levelData.busSequence = new List<BusData>(busSequence);
-        levelData.playAreaData = new List<PlayAreaCellData>(); // Yeni: şekil bilgisi
+        levelData.playAreaData = new List<PlayAreaCellData>();
 
         for (int x = 0; x < gridManager.gridWidth; x++)
         {
@@ -882,7 +961,6 @@ public class GridLevelDesignTool : Editor
                 GridCell cell = gridManager.GetCell(x, z);
                 if (cell != null)
                 {
-                    // Play area bilgisini kaydet
                     levelData.playAreaData.Add(new PlayAreaCellData
                     {
                         x = x,
@@ -891,7 +969,6 @@ public class GridLevelDesignTool : Editor
                         isVisible = cell.isVisible
                     });
 
-                    // Obje bilgisini kaydet
                     if (cell.occupyingObject != null)
                     {
                         var gridObject = cell.occupyingObject.GetComponent<GridObject>();
@@ -914,19 +991,18 @@ public class GridLevelDesignTool : Editor
 
     void ApplyLevelData(LevelData levelData)
     {
-        ClearAllObjects();
+        SaveEraseUndoSnapshot("Load Level Data");
+        ClearAllObjectsQuiet();
 
         gridManager.gridWidth = levelData.gridWidth;
         gridManager.gridHeight = levelData.gridHeight;
         gridManager.ForceGridRecreation();
 
-        // Load bus sequence if available
         if (levelData.busSequence != null && levelData.busSequence.Count > 0)
         {
             busSequence = new List<BusData>(levelData.busSequence);
         }
 
-        // Apply play area data
         if (levelData.playAreaData != null)
         {
             foreach (var areaData in levelData.playAreaData)
@@ -940,7 +1016,6 @@ public class GridLevelDesignTool : Editor
             }
         }
 
-        // Apply objects
         foreach (var objData in levelData.objects)
         {
             GridCell cell = gridManager.GetCell(objData.x, objData.z);
@@ -954,17 +1029,104 @@ public class GridLevelDesignTool : Editor
         }
     }
 
-    // Public method to get bus sequence for GameManager
+    public override void OnInspectorGUI()
+    {
+        DrawDefaultInspector();
+
+        EditorGUILayout.Space(10);
+        EditorGUILayout.LabelField("Level Design Tool", EditorStyles.boldLabel);
+
+        if (gridManager != null)
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Grid Status:", EditorStyles.boldLabel);
+
+            EditorGUILayout.LabelField($"• Initialized: {gridManager.IsGridInitialized}");
+            EditorGUILayout.LabelField($"• Dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}");
+
+            if (gridManager.IsGridInitialized)
+            {
+                int nullCells = 0;
+                for (int x = 0; x < Mathf.Min(5, gridManager.gridWidth); x++)
+                {
+                    for (int z = 0; z < Mathf.Min(5, gridManager.gridHeight); z++)
+                    {
+                        if (gridManager.GetCell(x, z) == null) nullCells++;
+                    }
+                }
+
+                if (nullCells > 0)
+                {
+                    EditorGUILayout.LabelField($"• Problem: {nullCells} null cells detected!", EditorStyles.miniLabel);
+                    GUI.color = Color.red;
+                }
+                else
+                {
+                    EditorGUILayout.LabelField("• Status: Grid cells OK", EditorStyles.miniLabel);
+                    GUI.color = Color.green;
+                }
+            }
+
+            GUI.color = Color.white;
+
+            EditorGUILayout.Space(5);
+
+            EditorGUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("FORCE INITIALIZE", GUILayout.Height(25)))
+            {
+                Debug.Log("=== FORCE INITIALIZE REQUESTED ===");
+                gridManager.gridInitialized = false;
+                gridManager.InitializeGrid();
+                EditorUtility.SetDirty(gridManager);
+            }
+
+            if (GUILayout.Button("RECREATE GRID", GUILayout.Height(25)))
+            {
+                Debug.Log("=== RECREATE GRID REQUESTED ===");
+                gridManager.ForceGridRecreation();
+                EditorUtility.SetDirty(gridManager);
+            }
+
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.EndVertical();
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("GridManager not found!", MessageType.Error);
+            return;
+        }
+
+        EditorGUILayout.Space(5);
+
+        bool newEditingMode = EditorGUILayout.Toggle("Enable Editing Mode", isEditingMode);
+        if (newEditingMode != isEditingMode)
+        {
+            isEditingMode = newEditingMode;
+            SceneView.RepaintAll();
+        }
+
+        if (!isEditingMode) return;
+
+        DrawBusSettings();
+        EditorGUILayout.Space(5);
+        DrawShapeSettings();
+        EditorGUILayout.Space(5);
+        DrawPersonSettings();
+        EditorGUILayout.Space(10);
+        DrawActionButtons();
+        EditorGUILayout.Space(5);
+        DrawHelpBox();
+    }
+
     public List<BusData> GetBusSequence()
     {
         return new List<BusData>(busSequence);
     }
 }
 
-// === ENUMS AND DATA CLASSES ===
 public enum EditMode
 {
-    DrawPlayArea,
     ErasePlayArea,
     PlacePerson
 }
@@ -985,7 +1147,7 @@ public enum PersonColor
 
 public enum GridObjectType
 {
-    Person  // Wall removed
+    Person
 }
 
 [System.Serializable]
@@ -995,7 +1157,7 @@ public class LevelData
     public int gridHeight;
     public List<GridObjectData> objects;
     public List<BusData> busSequence;
-    public List<PlayAreaCellData> playAreaData;  // Yeni: şekil bilgisi
+    public List<PlayAreaCellData> playAreaData;
 }
 
 [System.Serializable]

@@ -6,7 +6,7 @@ using UnityEditor;
 
 /// <summary>
 /// Kaan Çakar 2025 - GridManager.cs
-/// Manages a grid of cells for pathfinding and movement.
+/// GridManager is responsible for managing a grid of cells in the game.
 /// </summary>
 public class GridManager : MonoBehaviour
 {
@@ -28,6 +28,9 @@ public class GridManager : MonoBehaviour
     [SerializeField] private bool autoCreateGrid = true;
     [SerializeField] private bool recreateGridOnChange = true;
 
+    [Header("Runtime Play Area Data")]
+    [SerializeField] public List<PlayAreaCellData> runtimePlayAreaData = new List<PlayAreaCellData>();
+
     private GridCell[,] grid;
     private Dictionary<Vector2Int, GridCell> gridDictionary;
     private Camera mainCamera;
@@ -48,7 +51,17 @@ public class GridManager : MonoBehaviour
             // Runtime'da grid'i oluştur
             if (Application.isPlaying)
             {
-                InitializeGrid();
+                // ÖNCE mevcut grid objelerini kontrol et
+                if (HasExistingGridObjects())
+                {
+                    Debug.Log("Found existing grid objects from Editor, using them for runtime");
+                    InitializeGridFromExistingObjects();
+                }
+                else
+                {
+                    Debug.Log("No existing grid objects found, creating new grid");
+                    InitializeGrid();
+                }
             }
         }
         else if (Application.isPlaying)
@@ -116,6 +129,48 @@ public class GridManager : MonoBehaviour
         EditorUtility.SetDirty(gameObject);
     }
 
+    [ContextMenu("Save Current Play Area State")]
+    public void SaveCurrentPlayAreaState()
+    {
+        if (!gridInitialized)
+        {
+            Debug.LogWarning("Grid not initialized, cannot save play area state");
+            return;
+        }
+
+        runtimePlayAreaData.Clear();
+
+        int visibleCount = 0;
+        int invisibleCount = 0;
+
+        for (int x = 0; x < gridWidth; x++)
+        {
+            for (int z = 0; z < gridHeight; z++)
+            {
+                GridCell cell = GetCell(x, z);
+                if (cell != null)
+                {
+                    runtimePlayAreaData.Add(new PlayAreaCellData
+                    {
+                        x = x,
+                        z = z,
+                        isPlayArea = cell.isPlayArea,
+                        isVisible = cell.isVisible
+                    });
+
+                    if (cell.isVisible && cell.isPlayArea)
+                        visibleCount++;
+                    else
+                        invisibleCount++;
+                }
+            }
+        }
+
+        EditorUtility.SetDirty(this);
+        Debug.Log($"Saved play area state: {runtimePlayAreaData.Count} total cells");
+        Debug.Log($"Visible play areas: {visibleCount}, Hidden/Erased: {invisibleCount}");
+    }
+
     private void ClearExistingGrid()
     {
         // Eski grid objelerini bul ve sil
@@ -128,6 +183,8 @@ public class GridManager : MonoBehaviour
                 childrenToDelete.Add(child);
             }
         }
+
+        Debug.Log($"Clearing {childrenToDelete.Count} existing grid objects");
 
         foreach (Transform child in childrenToDelete)
         {
@@ -142,6 +199,92 @@ public class GridManager : MonoBehaviour
         }
     }
 #endif
+
+    // Mevcut grid objelerinin varlığını kontrol et
+    private bool HasExistingGridObjects()
+    {
+        int gridObjectCount = 0;
+        foreach (Transform child in transform)
+        {
+            if (child.name.StartsWith("GridCell_"))
+            {
+                gridObjectCount++;
+            }
+        }
+
+        Debug.Log($"Found {gridObjectCount} existing grid objects");
+        return gridObjectCount > 0;
+    }
+
+    // Mevcut objelerden grid'i oluştur
+    private void InitializeGridFromExistingObjects()
+    {
+        Debug.Log($"=== InitializeGridFromExistingObjects Started ===");
+
+        // Grid array'ini oluştur
+        grid = new GridCell[gridWidth, gridHeight];
+        gridDictionary = new Dictionary<Vector2Int, GridCell>();
+
+        // Önce tüm hücreleri oluştur (obje olmadan)
+        for (int x = 0; x < gridWidth; x++)
+        {
+            for (int z = 0; z < gridHeight; z++)
+            {
+                Vector3 worldPos = GetWorldPosition(x, z);
+                GridCell cell = new GridCell(x, z, worldPos, null);
+                grid[x, z] = cell;
+                gridDictionary[new Vector2Int(x, z)] = cell;
+            }
+        }
+
+        // Play area data'yı yükle
+        LoadRuntimePlayAreaData();
+
+        // Mevcut grid objelerini grid cell'lere bağla
+        foreach (Transform child in transform)
+        {
+            if (child.name.StartsWith("GridCell_"))
+            {
+                // Obje adından koordinatları çıkar (GridCell_x_z formatında)
+                string[] parts = child.name.Split('_');
+                if (parts.Length == 3 && int.TryParse(parts[1], out int x) && int.TryParse(parts[2], out int z))
+                {
+                    if (IsValidPosition(x, z))
+                    {
+                        GridCell cell = grid[x, z];
+
+                        // Eğer bu hücre görünür olmalıysa objeyi kullan
+                        if (cell.isVisible && cell.isPlayArea)
+                        {
+                            cell.cellObject = child.gameObject;
+
+                            // GridCellComponent'i kontrol et/ekle
+                            var cellComponent = child.GetComponent<GridCellComponent>();
+                            if (cellComponent == null)
+                                cellComponent = child.gameObject.AddComponent<GridCellComponent>();
+                            cellComponent.Initialize(cell);
+
+                            child.gameObject.SetActive(true);
+                            Debug.Log($"Connected existing object to cell ({x}, {z}) - Visible");
+                        }
+                        else
+                        {
+                            // Bu hücre görünmez olmalı - objeyi deaktive et
+                            child.gameObject.SetActive(false);
+                            Debug.Log($"Deactivated existing object at ({x}, {z}) - Not in play area");
+                        }
+                    }
+                }
+            }
+        }
+
+        gridInitialized = true;
+
+        // Mevcut GridObject'ları grid cell'lere otomatik bağla
+        AssignExistingObjectsToGridCells();
+
+        Debug.Log($"=== Grid initialization from existing objects completed ===");
+    }
 
     public void InitializeGrid()
     {
@@ -177,21 +320,42 @@ public class GridManager : MonoBehaviour
             {
                 Vector3 worldPos = GetWorldPosition(x, z);
 
-                Debug.Log($"Creating cell at ({x}, {z}) - WorldPos: {worldPos}");
-
-                // Grid cell objesini oluştur (optional)
-                GameObject cellObj = null;
-
                 // GridCell component'ini her durumda oluştur
-                GridCell cell = new GridCell(x, z, worldPos, cellObj);
+                GridCell cell = new GridCell(x, z, worldPos, null);
 
                 // Array'e ata
                 grid[x, z] = cell;
                 gridDictionary[new Vector2Int(x, z)] = cell;
+            }
+        }
 
-                // Prefab varsa 3D obje de oluştur
-                if (gridCellPrefab != null)
+        // ÖNCE play area data'yı yükle (cell state'lerini ayarlamak için)
+        if (Application.isPlaying)
+        {
+            LoadRuntimePlayAreaData();
+        }
+
+        // SONRA sadece visible olan hücreler için 3D obje oluştur
+        for (int x = 0; x < gridWidth; x++)
+        {
+            for (int z = 0; z < gridHeight; z++)
+            {
+                GridCell cell = grid[x, z];
+
+                // Sadece visible olan hücreler için 3D obje oluştur
+                bool shouldCreateObject = true;
+
+                if (Application.isPlaying)
                 {
+                    // Runtime'da sadece visible hücreler için obje oluştur
+                    shouldCreateObject = cell.isVisible && cell.isPlayArea;
+                }
+
+                if (shouldCreateObject && gridCellPrefab != null)
+                {
+                    GameObject cellObj = null;
+                    Vector3 worldPos = GetWorldPosition(x, z);
+
                     try
                     {
 #if UNITY_EDITOR
@@ -221,35 +385,28 @@ public class GridManager : MonoBehaviour
                                 cellComponent = cellObj.AddComponent<GridCellComponent>();
                             cellComponent.Initialize(cell);
 
-                            Debug.Log($"Cell object created successfully for ({x}, {z})");
+                            Debug.Log($"Cell object created for ({x}, {z}) - Visible: {cell.isVisible}");
                         }
                     }
                     catch (System.Exception e)
                     {
                         Debug.LogError($"Failed to create cell object at ({x}, {z}): {e.Message}");
-                        // Cell object olmasa da GridCell'i oluştur
                     }
                 }
-                else
+                else if (!shouldCreateObject)
                 {
-                    Debug.LogWarning("gridCellPrefab is null, creating cells without 3D objects");
+                    Debug.Log($"Skipped creating cell object for ({x}, {z}) - Not visible in play area");
                 }
             }
         }
 
         gridInitialized = true;
+
+        // ÖNEMLİ: Mevcut GridObject'ları grid cell'lere otomatik bağla
+        AssignExistingObjectsToGridCells();
+
         Debug.Log($"=== Grid initialization completed ===");
         Debug.Log($"Final state: gridInitialized={gridInitialized}, Total cells: {gridWidth * gridHeight}");
-
-        // Test: İlk birkaç cell'i kontrol et
-        for (int x = 0; x < Mathf.Min(3, gridWidth); x++)
-        {
-            for (int z = 0; z < Mathf.Min(3, gridHeight); z++)
-            {
-                GridCell testCell = grid[x, z];
-                Debug.Log($"Test cell ({x}, {z}): {(testCell != null ? "OK" : "NULL")}");
-            }
-        }
 
         // Editor'da dirty yap
 #if UNITY_EDITOR
@@ -260,10 +417,158 @@ public class GridManager : MonoBehaviour
 #endif
     }
 
+    /// <summary>
+    /// Enhanced debug version of assignment method
+    /// </summary>
+    private void AssignExistingObjectsToGridCells()
+    {
+        Debug.Log("=== DEBUGGING GRID ASSIGNMENT ===");
+
+        // Sahnedeki tüm GridObject'ları bul
+        GridObject[] allGridObjects = FindObjectsOfType<GridObject>();
+        Debug.Log($"Found {allGridObjects.Length} GridObjects in scene");
+
+        if (allGridObjects.Length == 0)
+        {
+            Debug.LogWarning("No GridObjects found in scene!");
+            return;
+        }
+
+        int assignedCount = 0;
+        int skippedCount = 0;
+
+        foreach (GridObject gridObj in allGridObjects)
+        {
+            Debug.Log($"Processing GridObject: {gridObj.name} ({gridObj.personColor})");
+            Debug.Log($"  Current position: {gridObj.transform.position}");
+            Debug.Log($"  Current gridCell: {(gridObj.gridCell != null ? "ASSIGNED" : "NULL")}");
+
+            // Zaten cell'e atanmışsa geç
+            if (gridObj.gridCell != null)
+            {
+                Debug.Log($"  ✅ {gridObj.personColor} already has gridCell assigned");
+                continue;
+            }
+
+            // Objenin dünya pozisyonunu grid pozisyonuna çevir
+            Vector2Int gridPos = GetGridPosition(gridObj.transform.position);
+            Debug.Log($"  Calculated grid position: ({gridPos.x}, {gridPos.y})");
+
+            // Geçerli pozisyon mu kontrol et
+            if (IsValidPosition(gridPos))
+            {
+                GridCell cell = GetCell(gridPos);
+                Debug.Log($"  Cell found: {(cell != null ? "YES" : "NO")}");
+
+                if (cell != null)
+                {
+                    Debug.Log($"  Cell isPlayArea: {cell.isPlayArea}");
+                    Debug.Log($"  Cell isVisible: {cell.isVisible}");
+                    Debug.Log($"  Cell IsOccupied: {cell.IsOccupied}");
+                }
+
+                if (cell != null && cell.isPlayArea)
+                {
+                    // GridObject'ı cell'e ata
+                    gridObj.gridCell = cell;
+
+                    // Cell'i işgal edilmiş olarak işaretle
+                    cell.SetOccupied(gridObj.gameObject);
+
+                    assignedCount++;
+                    Debug.Log($"  ✅ ASSIGNED {gridObj.personColor} to grid cell ({gridPos.x}, {gridPos.y})");
+                }
+                else
+                {
+                    skippedCount++;
+                    string reason = cell == null ? "CELL IS NULL" :
+                                   !cell.isPlayArea ? "NOT IN PLAY AREA" : "UNKNOWN";
+                    Debug.LogWarning($"  ⚠️ SKIPPED {gridObj.personColor} at ({gridPos.x}, {gridPos.y}) - Reason: {reason}");
+                }
+            }
+            else
+            {
+                skippedCount++;
+                Debug.LogWarning($"  ❌ INVALID POSITION {gridObj.personColor} at ({gridPos.x}, {gridPos.y}) - Outside grid bounds");
+            }
+
+            Debug.Log($"  --- End processing {gridObj.name} ---");
+        }
+
+        Debug.Log($"=== ASSIGNMENT COMPLETED: {assignedCount} assigned, {skippedCount} skipped ===");
+    }
+
+    /// <summary>
+    /// Manual assignment method for editor or debugging
+    /// </summary>
+    [ContextMenu("Assign All Objects to Grid Cells")]
+    public void ManualAssignObjectsToGridCells()
+    {
+        if (!gridInitialized)
+        {
+            Debug.LogWarning("Grid not initialized! Initialize grid first.");
+            return;
+        }
+
+        AssignExistingObjectsToGridCells();
+    }
+
+    // Runtime'da play area data'yı yükle
+    private void LoadRuntimePlayAreaData()
+    {
+        if (runtimePlayAreaData == null || runtimePlayAreaData.Count == 0)
+        {
+            Debug.Log("No runtime play area data found, using default (all visible)");
+            // DEFAULT: Tüm hücreleri play area yap
+            for (int x = 0; x < gridWidth; x++)
+            {
+                for (int z = 0; z < gridHeight; z++)
+                {
+                    GridCell cell = GetCell(x, z);
+                    if (cell != null)
+                    {
+                        cell.SetPlayArea(true);
+                        cell.SetVisible(true);
+                    }
+                }
+            }
+            return;
+        }
+
+        Debug.Log($"Loading runtime play area data: {runtimePlayAreaData.Count} entries");
+
+        // Grid cell'lerin state'ini ayarla (3D obje oluşturmadan önce)
+        foreach (var areaData in runtimePlayAreaData)
+        {
+            if (areaData.x >= 0 && areaData.x < gridWidth && areaData.z >= 0 && areaData.z < gridHeight)
+            {
+                GridCell cell = grid[areaData.x, areaData.z]; // Direkt array access
+                if (cell != null)
+                {
+                    cell.isPlayArea = areaData.isPlayArea;
+                    cell.isVisible = areaData.isVisible;
+
+                    Debug.Log($"Set cell ({areaData.x}, {areaData.z}): playArea={areaData.isPlayArea}, visible={areaData.isVisible}");
+                }
+            }
+        }
+
+        Debug.Log("Runtime play area data loaded successfully");
+    }
+
     // ForceGridRecreation metodunu da güncelle:
     public void ForceGridRecreation()
     {
         Debug.Log("Force recreating grid...");
+
+#if UNITY_EDITOR
+        // Editor'da mevcut play area state'ini kaydet
+        if (!Application.isPlaying && gridInitialized)
+        {
+            SaveCurrentPlayAreaState();
+        }
+#endif
+
         gridInitialized = false;
 
 #if UNITY_EDITOR
@@ -275,6 +580,291 @@ public class GridManager : MonoBehaviour
 #endif
 
         InitializeGrid();
+    }
+
+    // Level data yükleme metodu - GameManager için
+    public void LoadLevelPlayAreaData(List<PlayAreaCellData> levelPlayAreaData)
+    {
+        if (levelPlayAreaData == null)
+        {
+            Debug.LogWarning("Level play area data is null");
+            return;
+        }
+
+        // Runtime data'yı güncelle
+        runtimePlayAreaData = new List<PlayAreaCellData>(levelPlayAreaData);
+
+        Debug.Log($"Loaded level play area data: {runtimePlayAreaData.Count} entries");
+
+        // Eğer grid zaten initialize edilmişse, data'yı uygula
+        if (gridInitialized)
+        {
+            LoadRuntimePlayAreaData();
+        }
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            EditorUtility.SetDirty(this);
+        }
+#endif
+    }
+
+    // === PATHFINDING SYSTEM ===
+
+    /// <summary>
+    /// Finds shortest path from start position to any exit point
+    /// FIXED: Special handling for people already in exit row
+    /// </summary>
+    /// <param name="startPos">Starting position</param>
+    /// <returns>List of grid positions forming the path, or null if no path exists</returns>
+    public List<Vector2Int> FindPathToExit(Vector2Int startPos)
+    {
+        if (!IsValidPosition(startPos))
+        {
+            Debug.LogWarning($"Invalid start position: {startPos}");
+            return null;
+        }
+
+        // SPECIAL CASE: If person is already in the exit row (front row)
+        int frontRowZ = gridHeight - 1;
+        if (startPos.y == frontRowZ)
+        {
+            // Check if there's at least one empty exit point in the same row
+            List<Vector2Int> exitPoints = GetExitPoints();
+
+            if (exitPoints.Count > 0)
+            {
+                // Person is in exit row and there are empty exits -> can move to bus
+                Vector2Int nearestExit = GetNearestExitPoint(startPos, exitPoints);
+
+                // Create simple path: current position -> nearest exit
+                List<Vector2Int> exitRowPath = new List<Vector2Int> { startPos, nearestExit };
+                Debug.Log($"Exit row person at {startPos} can move to {nearestExit}");
+                return exitRowPath;
+            }
+            else
+            {
+                Debug.Log($"Exit row person at {startPos} has no available exits");
+                return null;
+            }
+        }
+
+        // NORMAL CASE: Person is not in exit row, use normal pathfinding
+        List<Vector2Int> allExitPoints = GetExitPoints();
+
+        if (allExitPoints.Count == 0)
+        {
+            Debug.LogWarning("No exit points found!");
+            return null;
+        }
+
+        // Use BFS to find shortest path to any exit
+        return BFS_FindPath(startPos, allExitPoints);
+    }
+
+    /// <summary>
+    /// Gets nearest exit point to a given position
+    /// </summary>
+    /// <param name="fromPos">Starting position</param>
+    /// <param name="exitPoints">Available exit points</param>
+    /// <returns>Nearest exit point</returns>
+    private Vector2Int GetNearestExitPoint(Vector2Int fromPos, List<Vector2Int> exitPoints)
+    {
+        if (exitPoints.Count == 0)
+            return Vector2Int.zero;
+
+        if (exitPoints.Count == 1)
+            return exitPoints[0];
+
+        // Find the closest exit point (Manhattan distance)
+        Vector2Int nearest = exitPoints[0];
+        int minDistance = Mathf.Abs(fromPos.x - nearest.x) + Mathf.Abs(fromPos.y - nearest.y);
+
+        for (int i = 1; i < exitPoints.Count; i++)
+        {
+            Vector2Int exit = exitPoints[i];
+            int distance = Mathf.Abs(fromPos.x - exit.x) + Mathf.Abs(fromPos.y - exit.y);
+
+            if (distance < minDistance)
+            {
+                minDistance = distance;
+                nearest = exit;
+            }
+        }
+
+        Debug.Log($"Nearest exit to {fromPos} is {nearest} (distance: {minDistance})");
+        return nearest;
+    }
+
+    /// <summary>
+    /// Enhanced exit point detection - excludes occupied cells in exit row
+    /// </summary>
+    /// <returns>List of exit positions</returns>
+    private List<Vector2Int> GetExitPoints()
+    {
+        List<Vector2Int> exitPoints = new List<Vector2Int>();
+
+        // Front row is the one with highest Z coordinate (closest to bus)
+        int frontRowZ = gridHeight - 1;
+
+        for (int x = 0; x < gridWidth; x++)
+        {
+            Vector2Int pos = new Vector2Int(x, frontRowZ);
+            GridCell cell = GetCell(pos);
+
+            // Exit point must be: valid, play area, walkable, and NOT OCCUPIED
+            if (cell != null && cell.isPlayArea && cell.IsWalkable && !cell.IsOccupied)
+            {
+                exitPoints.Add(pos);
+            }
+        }
+
+        Debug.Log($"Found {exitPoints.Count} exit points at row {frontRowZ}");
+        return exitPoints;
+    }
+
+    /// <summary>
+    /// BFS pathfinding to find shortest path to any of the target positions
+    /// </summary>
+    /// <param name="start">Start position</param>
+    /// <param name="targets">Target positions (exit points)</param>
+    /// <returns>Path as list of positions, or null if no path exists</returns>
+    private List<Vector2Int> BFS_FindPath(Vector2Int start, List<Vector2Int> targets)
+    {
+        // BFS data structures
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
+        HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
+
+        // Initialize BFS
+        queue.Enqueue(start);
+        visited.Add(start);
+        cameFrom[start] = start; // Start came from itself
+
+        // 4-directional movement (no diagonals)
+        Vector2Int[] directions = {
+            Vector2Int.up,    // North (z+1)
+            Vector2Int.down,  // South (z-1)  
+            Vector2Int.left,  // West (x-1)
+            Vector2Int.right  // East (x+1)
+        };
+
+        // BFS main loop
+        while (queue.Count > 0)
+        {
+            Vector2Int current = queue.Dequeue();
+
+            // Check if we reached any target
+            if (targets.Contains(current))
+            {
+                Debug.Log($"Path found! Reached exit at {current}");
+                return ReconstructPath(cameFrom, start, current);
+            }
+
+            // Explore neighbors
+            foreach (var direction in directions)
+            {
+                Vector2Int neighbor = current + direction;
+
+                // Skip if already visited
+                if (visited.Contains(neighbor))
+                    continue;
+
+                // Check if neighbor is walkable
+                if (IsWalkableForPathfinding(neighbor))
+                {
+                    queue.Enqueue(neighbor);
+                    visited.Add(neighbor);
+                    cameFrom[neighbor] = current;
+                }
+            }
+        }
+
+        // No path found
+        Debug.Log($"No path found from {start} to any exit point");
+        return null;
+    }
+
+    /// <summary>
+    /// Checks if a position is walkable for pathfinding purposes
+    /// </summary>
+    /// <param name="pos">Position to check</param>
+    /// <returns>True if walkable</returns>
+    private bool IsWalkableForPathfinding(Vector2Int pos)
+    {
+        // Must be valid position
+        if (!IsValidPosition(pos))
+            return false;
+
+        GridCell cell = GetCell(pos);
+        if (cell == null)
+            return false;
+
+        // Must be in play area
+        if (!cell.isPlayArea || !cell.isVisible)
+            return false;
+
+        // Must be walkable and not occupied
+        return cell.IsWalkable && !cell.IsOccupied;
+    }
+
+    /// <summary>
+    /// Reconstructs the path from BFS result
+    /// </summary>
+    /// <param name="cameFrom">BFS parent tracking</param>
+    /// <param name="start">Start position</param>
+    /// <param name="end">End position</param>
+    /// <returns>Path from start to end</returns>
+    private List<Vector2Int> ReconstructPath(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int start, Vector2Int end)
+    {
+        List<Vector2Int> path = new List<Vector2Int>();
+        Vector2Int current = end;
+
+        // Trace back from end to start
+        while (current != start)
+        {
+            path.Add(current);
+            current = cameFrom[current];
+        }
+
+        path.Add(start);
+        path.Reverse(); // Reverse to get start -> end
+
+        Debug.Log($"Reconstructed path with {path.Count} steps: {string.Join(" -> ", path)}");
+        return path;
+    }
+
+    /// <summary>
+    /// Quick check if a person can move (has path to exit)
+    /// ENHANCED: Better logging and edge case handling
+    /// </summary>
+    /// <param name="personPos">Person's grid position</param>
+    /// <returns>True if person can reach an exit</returns>
+    public bool CanPersonReachExit(Vector2Int personPos)
+    {
+        var path = FindPathToExit(personPos);
+        bool canReach = path != null && path.Count >= 1; // At least the person's current position
+
+        Debug.Log($"Person at ({personPos.x}, {personPos.y}) can reach exit: {canReach} (path length: {path?.Count ?? 0})");
+        return canReach;
+    }
+
+    /// <summary>
+    /// Debug visualization of pathfinding
+    /// </summary>
+    /// <param name="path">Path to visualize</param>
+    public void DebugDrawPath(List<Vector2Int> path)
+    {
+        if (path == null || path.Count < 2) return;
+
+        for (int i = 0; i < path.Count - 1; i++)
+        {
+            Vector3 from = GetWorldPosition(path[i].x, path[i].y) + Vector3.up * 0.5f;
+            Vector3 to = GetWorldPosition(path[i + 1].x, path[i + 1].y) + Vector3.up * 0.5f;
+
+            Debug.DrawLine(from, to, Color.yellow, 2f);
+        }
     }
 
     // Grid koordinatlarını dünya pozisyonuna çevir
@@ -448,38 +1038,4 @@ public class GridManager : MonoBehaviour
 
         return true;
     }
-#if UNITY_EDITOR
-    [UnityEditor.CustomEditor(typeof(GridManager))]
-    public class GridManagerEditor : UnityEditor.Editor
-    {
-        public override void OnInspectorGUI()
-        {
-            DrawDefaultInspector();
-
-            GridManager gridManager = (GridManager)target;
-
-            UnityEditor.EditorGUILayout.Space(10);
-            UnityEditor.EditorGUILayout.LabelField("Grid Controls", UnityEditor.EditorStyles.boldLabel);
-
-            if (!gridManager.IsGridInitialized)
-            {
-                if (GUILayout.Button("Initialize Grid"))
-                {
-                    gridManager.InitializeGrid();
-                    UnityEditor.EditorUtility.SetDirty(gridManager);
-                }
-            }
-            else
-            {
-                UnityEditor.EditorGUILayout.LabelField($"Grid Status: Initialized ({gridManager.gridWidth}x{gridManager.gridHeight})");
-
-                if (GUILayout.Button("Force Recreate Grid"))
-                {
-                    gridManager.ForceGridRecreation();
-                    UnityEditor.EditorUtility.SetDirty(gridManager);
-                }
-            }
-        }
-    }
-#endif
 }

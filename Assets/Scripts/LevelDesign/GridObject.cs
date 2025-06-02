@@ -32,7 +32,9 @@ public class GridObject : MonoBehaviour
     // Person movement
     private Vector3 targetPosition;
     private bool isMoving = false;
+    private bool newPlayable = false;
     private float moveSpeed = 5f;
+
 
     void Awake()
     {
@@ -46,19 +48,54 @@ public class GridObject : MonoBehaviour
     void Start()
     {
         UpdateVisuals();
-        UpdatePlayableStatus();
+
+        StartCoroutine(DelayedPlayableStatusUpdate());
     }
 
     void Update()
     {
         HandleMovement();
-        
-        // Oynanabilir durumu sürekli güncelle
+
+        if (objectType == GridObjectType.Person && !isInBus && !isInWaitingGrid)
+        {
+            if (GameManager.Instance != null && GameManager.Instance.isGameActive)
+            {
+                if (gridCell != null)
+                {
+                    UpdatePlayableStatus();
+                }
+                else
+                {
+                    if (isPlayable)
+                    {
+                        isPlayable = false;
+                        UpdatePlayableVisual();
+                        Debug.Log($"Person {personColor}: GridCell null, setting playable to false");
+                    }
+                }
+            }
+        }
+    }
+    System.Collections.IEnumerator DelayedPlayableStatusUpdate()
+    {
+        while (GameManager.Instance == null)
+        {
+            yield return new WaitForSeconds(0.1f);
+        }
+
+        while (gridCell == null)
+        {
+            yield return new WaitForSeconds(0.1f);
+        }
+
+        yield return new WaitForSeconds(0.2f);
+
         if (objectType == GridObjectType.Person && !isInBus && !isInWaitingGrid)
         {
             UpdatePlayableStatus();
         }
     }
+
 
     public void Initialize(GridCell cell, GridObjectType type)
     {
@@ -117,18 +154,40 @@ public class GridObject : MonoBehaviour
 
         Debug.Log($"Person clicked: {personColor} at ({gridCell?.x}, {gridCell?.z})");
     }
-
-    void UpdatePlayableStatus()
+     void UpdatePlayableStatus()
     {
-        if (GameManager.Instance != null)
+        if (GameManager.Instance == null)
         {
-            bool newPlayable = GameManager.Instance.CanPersonMove(this);
-            
-            if (newPlayable != isPlayable)
+            bool tempPlayable = false;
+
+            if (tempPlayable != isPlayable)
             {
-                isPlayable = newPlayable;
+                isPlayable = tempPlayable;
                 UpdatePlayableVisual();
             }
+            return;
+        }
+
+        if (gridCell == null)
+        {
+            Debug.Log($"Person {personColor}: GridCell is null in UpdatePlayableStatus");
+            
+            bool tempPlayable = false;
+            if (tempPlayable != isPlayable)
+            {
+                isPlayable = tempPlayable;
+                UpdatePlayableVisual();
+            }
+            return;
+        }
+
+        bool tempPlayable2 = GameManager.Instance.CanPersonMove(this);
+
+        if (tempPlayable2 != isPlayable)
+        {
+            isPlayable = tempPlayable2;
+            UpdatePlayableVisual();
+            Debug.Log($"Person {personColor} playable status changed to: {isPlayable}");
         }
     }
 
@@ -138,7 +197,7 @@ public class GridObject : MonoBehaviour
         {
             playableOutline.SetActive(isPlayable);
         }
-        
+
         // Alternatif olarak material'i değiştir
         if (objRenderer != null && objectType == GridObjectType.Person)
         {
@@ -254,7 +313,7 @@ public class GridObject : MonoBehaviour
         {
             transform.position = targetPosition;
             isMoving = false;
-            
+
             // Hareket tamamlandığında oynanabilir durumu güncelle
             UpdatePlayableStatus();
         }
@@ -266,7 +325,7 @@ public class GridObject : MonoBehaviour
         if (objectType != GridObjectType.Person) return;
 
         isInBus = true;
-        
+
         // Grid cell'i boşalt - NULL CHECK
         if (gridCell != null)
         {
@@ -275,7 +334,7 @@ public class GridObject : MonoBehaviour
         }
 
         OnPersonBoarded?.Invoke();
-        
+
         // Basit otobüse binme animasyonu
         StartCoroutine(BoardBusAnimation());
     }
@@ -284,22 +343,22 @@ public class GridObject : MonoBehaviour
     {
         Vector3 startPos = transform.position;
         Vector3 busDirection = Vector3.up * 3f; // Yukarı hareket
-        
+
         float duration = 0.8f;
         float elapsed = 0f;
-        
+
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
-            
+
             // Yukarı hareket + küçülme
             transform.position = Vector3.Lerp(startPos, startPos + busDirection, t);
             transform.localScale = Vector3.Lerp(Vector3.one, Vector3.zero, t);
-            
+
             yield return null;
         }
-        
+
         // Animasyon tamamlandı
         gameObject.SetActive(false);
         Debug.Log($"{personColor} person boarded the bus");
@@ -311,7 +370,7 @@ public class GridObject : MonoBehaviour
         if (objectType != GridObjectType.Person) return;
 
         isInWaitingGrid = true;
-        
+
         // Grid cell'i boşalt - NULL CHECK
         if (gridCell != null)
         {
@@ -321,7 +380,7 @@ public class GridObject : MonoBehaviour
 
         // NOTE: Hareket artık WaitingGrid.AddPersonToWaiting() içinde yapılıyor
         // Bu metod sadece state'i güncelliyor
-        
+
         Debug.Log($"{personColor} person marked for waiting grid");
     }
 
@@ -329,7 +388,7 @@ public class GridObject : MonoBehaviour
     {
         return isPlayable && !isInBus && !isInWaitingGrid;
     }
-    
+
     void OnDrawGizmosSelected()
     {
         if (gridCell != null)
@@ -343,7 +402,7 @@ public class GridObject : MonoBehaviour
             Gizmos.color = Color.yellow;
             Gizmos.DrawLine(transform.position, targetPosition);
         }
-        
+
         if (isPlayable)
         {
             Gizmos.color = Color.green;

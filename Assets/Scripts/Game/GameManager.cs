@@ -4,7 +4,7 @@ using UnityEngine.Events;
 
 /// <summary>
 /// Kaan Çakar 2025 - GameManager.cs
-/// Main game logic controller for the bus puzzle game - Updated for shape system
+/// Main game logic controller for managing game state, levels, buses, and people.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -266,7 +266,40 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // Kişi seçildiğinde çağrılır - ANA OYUN MEKANİĞİ
+    // === PATHFINDING INTEGRATION ===
+
+    public bool CanPersonMove(GridObject person)
+    {
+        // NULL CHECKS
+        if (person == null || person.gridCell == null)
+        {
+            Debug.LogWarning("CanPersonMove: person or gridCell is null");
+            return false;
+        }
+
+        if (gridManager == null)
+        {
+            Debug.LogWarning("CanPersonMove: gridManager is null");
+            return false;
+        }
+
+        // Play area kontrolü
+        if (!person.gridCell.isPlayArea)
+        {
+            Debug.Log($"Person at ({person.gridCell.x}, {person.gridCell.z}) not in play area");
+            return false;
+        }
+
+        // COORDINATE FIX: Z koordinatını Y olarak kullan
+        Vector2Int personPos = new Vector2Int(person.gridCell.x, person.gridCell.z);
+
+        // Pathfinding kontrolü
+        bool hasPath = gridManager.CanPersonReachExit(personPos);
+
+        Debug.Log($"Person {person.personColor} at ({personPos.x}, {personPos.y}) - HasPath: {hasPath}");
+        return hasPath;
+    }
+
     public void OnPersonSelected(GridObject person)
     {
         if (!person.IsPlayable())
@@ -275,20 +308,35 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Sadece oynanabilir alandaki insanları kontrol et
         if (person.gridCell == null || !person.gridCell.isPlayArea)
         {
             OnGameMessage?.Invoke("Person is not in playable area!");
             return;
         }
 
-        // Renk kontrolü yap ve hedefe gönder
-        ProcessPersonMovement(person);
+        if (gridManager == null)
+        {
+            OnGameMessage?.Invoke("Grid system not available!");
+            return;
+        }
+
+        Vector2Int personPos = new Vector2Int(person.gridCell.x, person.gridCell.z);
+        List<Vector2Int> pathToExit = gridManager.FindPathToExit(personPos);
+
+        if (pathToExit == null || pathToExit.Count < 2)
+        {
+            OnGameMessage?.Invoke("No path to exit available!");
+            return;
+        }
+
+        Debug.Log($"Found path with {pathToExit.Count} steps for {person.personColor} at ({personPos.x}, {personPos.y})");
+
+        ProcessPersonMovementWithPath(person, pathToExit);
 
         OnPersonSelectedEvent?.Invoke(person);
     }
 
-    void ProcessPersonMovement(GridObject person)
+    void ProcessPersonMovementWithPath(GridObject person, List<Vector2Int> pathToExit)
     {
         if (currentBus == null)
         {
@@ -300,16 +348,16 @@ public class GameManager : MonoBehaviour
         if (person.personColor == currentBus.color)
         {
             // Doğru renk - otobüse gönder
-            SendPersonToBus(person);
+            SendPersonToBusWithPath(person, pathToExit);
         }
         else
         {
-            // Yanlış renk - bekleme gridine gönder
-            SendPersonToWaitingGrid(person);
+            // Yanlış renk - bekleme gridine gönder  
+            SendPersonToWaitingGridWithPath(person, pathToExit);
         }
     }
 
-    void SendPersonToBus(GridObject person)
+    void SendPersonToBusWithPath(GridObject person, List<Vector2Int> pathToExit)
     {
         if (currentBus.IsFull())
         {
@@ -317,44 +365,98 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Otobüs pozisyonunu al
-        Vector3 targetBusPosition = GetBusPosition();
-
-        // Kişiyi otobüse hareket ettir
-        StartCoroutine(MovePersonToBus(person, targetBusPosition));
+        // PATH FOLLOWING ile otobüse hareket ettir
+        StartCoroutine(MovePersonAlongPath(person, pathToExit, MoveDestination.Bus));
     }
 
-    Vector3 GetBusPosition()
+    void SendPersonToWaitingGridWithPath(GridObject person, List<Vector2Int> pathToExit)
     {
-        if (busPosition != null)
-            return busPosition.position;
+        // Waiting grid dolu mu?
+        if (waitingGrid != null && waitingGrid.IsFull())
+        {
+            LoseGame("Waiting grid is full!");
+            return;
+        }
 
-        if (currentBusObject != null)
-            return currentBusObject.transform.position;
-
-        // Fallback - ekranın ortası
-        return new Vector3(0, 1, 0);
+        // PATH FOLLOWING ile waiting grid'e hareket ettir
+        StartCoroutine(MovePersonAlongPath(person, pathToExit, MoveDestination.WaitingGrid));
     }
 
-    System.Collections.IEnumerator MovePersonToBus(GridObject person, Vector3 busPos)
-    {
-        Vector3 startPos = person.transform.position;
-        Vector3 busEntryPoint = busPos + Vector3.back * 2f; // Otobüsün arkasına
+    // === PATH FOLLOWING ANIMATION SYSTEM ===
 
-        float duration = 1.5f;
-        float elapsed = 0f;
+    public enum MoveDestination
+    {
+        Bus,
+        WaitingGrid
+    }
+
+    System.Collections.IEnumerator MovePersonAlongPath(GridObject person, List<Vector2Int> path, MoveDestination destination)
+    {
+        Debug.Log($"Starting path movement for {person.personColor} to {destination}");
 
         // Grid'den kaldır
         RemovePersonFromGrid(person);
+
+        // Path boyunca hareket et
+        for (int i = 0; i < path.Count; i++)
+        {
+            Vector2Int gridPos = path[i];
+            Vector3 worldPos = gridManager.GetWorldPosition(gridPos.x, gridPos.y);
+            worldPos.y = person.transform.position.y; // Y pozisyonunu koru
+
+            // Hareket animasyonu
+            yield return StartCoroutine(MovePersonToPosition(person, worldPos));
+
+            // Debug çizgisi
+            if (i < path.Count - 1)
+            {
+                Vector2Int nextPos = path[i + 1];
+                Vector3 nextWorldPos = gridManager.GetWorldPosition(nextPos.x, nextPos.y);
+                Debug.DrawLine(worldPos + Vector3.up, nextWorldPos + Vector3.up, Color.green, 1f);
+            }
+        }
+
+        // Path tamamlandı - hedefe göre final hareket
+        yield return StartCoroutine(HandleFinalDestination(person, destination));
+    }
+
+    System.Collections.IEnumerator MovePersonToPosition(GridObject person, Vector3 targetPos)
+    {
+        Vector3 startPos = person.transform.position;
+        float duration = 0.5f; // Her adım 0.5 saniye
+        float elapsed = 0f;
 
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
 
-            person.transform.position = Vector3.Lerp(startPos, busEntryPoint, t);
+            person.transform.position = Vector3.Lerp(startPos, targetPos, t);
             yield return null;
         }
+
+        person.transform.position = targetPos;
+    }
+
+    System.Collections.IEnumerator HandleFinalDestination(GridObject person, MoveDestination destination)
+    {
+        switch (destination)
+        {
+            case MoveDestination.Bus:
+                yield return StartCoroutine(MoveToBusEntryPoint(person));
+                break;
+
+            case MoveDestination.WaitingGrid:
+                yield return StartCoroutine(MoveToWaitingGrid(person));
+                break;
+        }
+    }
+
+    System.Collections.IEnumerator MoveToBusEntryPoint(GridObject person)
+    {
+        // Otobüs giriş noktasına hareket et
+        Vector3 busEntryPoint = GetBusPosition() + Vector3.back * 2f;
+        yield return StartCoroutine(MovePersonToPosition(person, busEntryPoint));
 
         // Otobüse bindir
         person.BoardBus();
@@ -370,27 +472,19 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void SendPersonToWaitingGrid(GridObject person)
+    System.Collections.IEnumerator MoveToWaitingGrid(GridObject person)
     {
-        // Waiting grid dolu mu?
-        if (waitingGrid != null && waitingGrid.IsFull())
-        {
-            LoseGame("Waiting grid is full!");
-            return;
-        }
-
-        // Kişiyi waiting grid'e ekle (hareket WaitingGrid tarafından yapılacak)
+        // Waiting grid'e ekle (hareket WaitingGrid tarafından yapılacak)
         if (waitingGrid != null && waitingGrid.AddPersonToWaiting(person))
         {
-            // Başarıyla eklendi
-            RemovePersonFromGrid(person);
-
             OnGameMessage?.Invoke($"Wrong color! ({waitingGrid.GetOccupiedCount()}/{waitingGrid.capacity})");
         }
         else
         {
             LoseGame("Failed to add person to waiting area!");
         }
+
+        yield return null; // Placeholder
     }
 
     void DepartCurrentBus()
@@ -421,26 +515,19 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public bool CanPersonMove(GridObject person)
+    Vector3 GetBusPosition()
     {
-        if (person == null || person.gridCell == null) return false;
+        if (busPosition != null)
+            return busPosition.position;
 
-        // Play area kontrolü ekle
-        if (!person.gridCell.isPlayArea) return false;
+        if (currentBusObject != null)
+            return currentBusObject.transform.position;
 
-        // 4 taraf kontrolü - komşu hücrelerin en az biri boş olmalı veya play area dışı olmalı
-        var neighbors = gridManager.GetNeighbors(person.gridCell.x, person.gridCell.z);
-
-        foreach (var neighbor in neighbors)
-        {
-            if (!neighbor.IsOccupied || !neighbor.isPlayArea)
-            {
-                return true; // En az bir boş komşu var veya play area dışı
-            }
-        }
-
-        return false; // Tüm taraflar dolu
+        // Fallback - ekranın ortası
+        return new Vector3(0, 1, 0);
     }
+
+    // === PLAYABLE PERSONS UPDATE ===
 
     public List<GridObject> GetPlayablePersons()
     {
@@ -448,9 +535,13 @@ public class GameManager : MonoBehaviour
 
         foreach (var person in allPeople)
         {
-            if (CanPersonMove(person) && person.gridCell != null && person.gridCell.isPlayArea)
+            if (person.gridCell != null && person.gridCell.isPlayArea)
             {
-                playable.Add(person);
+                // YENİ SİSTEM: Pathfinding ile kontrol
+                if (CanPersonMove(person))
+                {
+                    playable.Add(person);
+                }
             }
         }
 
@@ -507,21 +598,14 @@ public class GameManager : MonoBehaviour
         {
             gridManager.gridWidth = levelData.gridWidth;
             gridManager.gridHeight = levelData.gridHeight;
-            gridManager.ForceGridRecreation();
 
-            // Play area verilerini uygula
+            // ÖNEMLİ: Play area data'yı GridManager'a yükle
             if (levelData.playAreaData != null)
             {
-                foreach (var areaData in levelData.playAreaData)
-                {
-                    GridCell cell = gridManager.GetCell(areaData.x, areaData.z);
-                    if (cell != null)
-                    {
-                        cell.SetPlayArea(areaData.isPlayArea);
-                        cell.SetVisible(areaData.isVisible);
-                    }
-                }
+                gridManager.LoadLevelPlayAreaData(levelData.playAreaData);
             }
+
+            gridManager.ForceGridRecreation();
         }
 
         // Level'ı yeniden başlat
@@ -596,5 +680,36 @@ public class GameManager : MonoBehaviour
         }
 
         return positions;
+    }
+
+    // === DEBUG METHODS ===
+
+    [ContextMenu("Debug All Paths")]
+   public void DebugAllPersonPaths()
+    {
+        if (gridManager == null)
+        {
+            Debug.LogError("GridManager is null - cannot debug paths");
+            return;
+        }
+
+        foreach (var person in allPeople)
+        {
+            if (person.gridCell != null && person.gridCell.isPlayArea)
+            {
+                Vector2Int personPos = new Vector2Int(person.gridCell.x, person.gridCell.z);
+                var path = gridManager.FindPathToExit(personPos);
+                
+                if (path != null)
+                {
+                    Debug.Log($"{person.personColor} at ({personPos.x}, {personPos.y}): Path found with {path.Count} steps");
+                    gridManager.DebugDrawPath(path);
+                }
+                else
+                {
+                    Debug.Log($"{person.personColor} at ({personPos.x}, {personPos.y}): No path available");
+                }
+            }
+        }
     }
 }

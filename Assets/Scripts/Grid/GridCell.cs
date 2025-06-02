@@ -47,7 +47,6 @@ public class GridCell
     {
         IsOccupied = true;
         occupyingObject = obj;
-        // NOT: Wall sistemi kaldırıldığı için IsWalkable'ı sadece person için false yapıyoruz
         if (obj != null && obj.GetComponent<GridObject>()?.objectType == GridObjectType.Person)
         {
             IsWalkable = false;
