@@ -126,6 +126,8 @@ MonoBehaviour:
     worldPosition: {x: 0, y: 0, z: 0}
     IsWalkable: 0
     IsOccupied: 0
+    isPlayArea: 0
+    isVisible: 0
     cellObject: {fileID: 0}
     occupyingObject: {fileID: 0}
     movementCost: 0
@@ -139,7 +141,13 @@ MonoBehaviour:
   OnPersonBoarded:
     m_PersistentCalls:
       m_Calls: []
-  selectionIndicator: {fileID: 0}
+  useQuickOutline: 1
+  outlineComponent: {fileID: 0}
+  playableOutlineColor: {r: 0, g: 0, b: 0, a: 1}
+  nonPlayableFlashColor: {r: 1, g: 0, b: 0, a: 1}
+  selectedOutlineColor: {r: 1, g: 1, b: 1, a: 1}
+  outlineWidth: 3
   personMaterials:
   - {fileID: 2100000, guid: 5ed3af95a494c4fa0a6c0744873fa600, type: 2}
-  playableOutline: {fileID: 0}
+  selectionIndicator: {fileID: 0}
+  useOpacityForNonPlayable: 1

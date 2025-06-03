@@ -141,7 +141,13 @@ MonoBehaviour:
   OnPersonBoarded:
     m_PersistentCalls:
       m_Calls: []
-  selectionIndicator: {fileID: 0}
+  useQuickOutline: 1
+  outlineComponent: {fileID: 0}
+  playableOutlineColor: {r: 0, g: 0, b: 0, a: 1}
+  nonPlayableFlashColor: {r: 1, g: 0, b: 0, a: 1}
+  selectedOutlineColor: {r: 1, g: 1, b: 1, a: 1}
+  outlineWidth: 3
   personMaterials:
   - {fileID: 2100000, guid: 7c72f9e549c0341c8a6b2a09f2e62d96, type: 2}
-  playableOutline: {fileID: 0}
+  selectionIndicator: {fileID: 0}
+  useOpacityForNonPlayable: 1

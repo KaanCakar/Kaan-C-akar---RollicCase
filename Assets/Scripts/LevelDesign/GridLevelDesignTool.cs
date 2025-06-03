@@ -1,11 +1,50 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using System.Linq;
+
+#if UNITY_EDITOR
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
+#endif
 
 /// <summary>
 /// Kaan Çakar 2025 - GridLevelDesignTool.cs
-/// Clean version without undo system
+/// Complete version with Timer System and Scene Level Manager
 /// </summary>
+
+// Enum tanımlamaları (class dışında)
+public enum TimerDisplayFormat
+{
+    SecondsOnly,        // "45"
+    MinutesSeconds,     // "1:30"
+    MinutesSecondsMs    // "1:30:50"
+}
+
+public enum EditMode
+{
+    ErasePlayArea,
+    PlacePerson
+}
+
+public enum PersonColor
+{
+    Red = 0,
+    Blue = 1,
+    Green = 2,
+    Yellow = 3,
+    Magenta = 4,
+    Cyan = 5,
+    White = 6,
+    Pink = 7,
+    Orange = 8,
+    Purple = 9
+}
+
+public enum GridObjectType
+{
+    Person
+}
 
 #if UNITY_EDITOR
 [CustomEditor(typeof(GridManager))]
@@ -28,6 +67,19 @@ public class GridLevelDesignTool : Editor
     private Vector2 busScrollPos;
     private PersonColor selectedBusColor = PersonColor.Red;
     private int selectedBusCapacity = 3;
+
+    // Level timer settings
+    [Header("Level Timer Settings")]
+    public bool enableLevelTimer = true;
+    public float levelTimeInSeconds = 60f;
+    public TimerDisplayFormat timerFormat = TimerDisplayFormat.MinutesSeconds;
+
+    // Scene Level Manager
+    [Header("Scene Level Manager")]
+    public string levelNamePrefix = "Level_";
+    public string levelsFolder = "Assets/Scenes/Levels/";
+    public int currentLevelNumber = 1;
+    public bool autoIncrementLevel = true;
 
     // Prefab references
     private GameObject[] personPrefabs = new GameObject[10];
@@ -73,6 +125,8 @@ public class GridLevelDesignTool : Editor
             busSequence.Add(new BusData { color = PersonColor.Red, capacity = 3 });
         }
     }
+
+    #region GUI Drawing Methods
 
     void DrawBusSettings()
     {
@@ -274,6 +328,190 @@ public class GridLevelDesignTool : Editor
             EditorGUILayout.EndVertical();
         }
     }
+
+    void DrawTimerSettings()
+    {
+        EditorGUILayout.Space(10);
+        EditorGUILayout.LabelField("Level Timer Settings", EditorStyles.boldLabel);
+
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+        // Timer enable/disable
+        enableLevelTimer = EditorGUILayout.Toggle("Enable Level Timer", enableLevelTimer);
+
+        if (enableLevelTimer)
+        {
+            EditorGUILayout.Space(5);
+
+            // Timer duration ayarları
+            EditorGUILayout.LabelField("Timer Duration:", EditorStyles.miniBoldLabel);
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Time Limit:", GUILayout.Width(80));
+            levelTimeInSeconds = EditorGUILayout.FloatField(levelTimeInSeconds, GUILayout.Width(60));
+            EditorGUILayout.LabelField("seconds", GUILayout.Width(60));
+            EditorGUILayout.EndHorizontal();
+
+            // Hızlı preset'ler
+            EditorGUILayout.Space(3);
+            EditorGUILayout.LabelField("Quick Presets:", EditorStyles.miniLabel);
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("30s", GUILayout.Width(40)))
+                levelTimeInSeconds = 30f;
+            if (GUILayout.Button("1m", GUILayout.Width(40)))
+                levelTimeInSeconds = 60f;
+            if (GUILayout.Button("2m", GUILayout.Width(40)))
+                levelTimeInSeconds = 120f;
+            if (GUILayout.Button("3m", GUILayout.Width(40)))
+                levelTimeInSeconds = 180f;
+            if (GUILayout.Button("5m", GUILayout.Width(40)))
+                levelTimeInSeconds = 300f;
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(5);
+
+            // Display format
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Display Format:", GUILayout.Width(100));
+            timerFormat = (TimerDisplayFormat)EditorGUILayout.EnumPopup(timerFormat);
+            EditorGUILayout.EndHorizontal();
+
+            // Preview
+            EditorGUILayout.Space(3);
+            string previewText = FormatTime(levelTimeInSeconds, timerFormat);
+            EditorGUILayout.LabelField($"Preview: {previewText}", EditorStyles.helpBox);
+
+            EditorGUILayout.Space(5);
+
+            // Timer info
+            EditorGUILayout.HelpBox(
+                "Timer başlatma:\n" +
+                "• İlk person tıklamasında başlar\n" +
+                "• Start() fonksiyonunda değil\n" +
+                "• Süre bitince level kaybedilir",
+                MessageType.Info
+            );
+
+            // Save button
+            if (GUILayout.Button("Save Timer Settings", GUILayout.Height(25)))
+            {
+                SaveTimerSettings();
+            }
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("Timer devre dışı - Level'da süre sınırı yok", MessageType.Warning);
+        }
+
+        EditorGUILayout.EndVertical();
+    }
+
+    void DrawSceneLevelManager()
+    {
+        EditorGUILayout.Space(10);
+        EditorGUILayout.LabelField("Scene Level Manager", EditorStyles.boldLabel);
+
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+        // Level naming settings
+        EditorGUILayout.LabelField("Level Settings:", EditorStyles.miniBoldLabel);
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Level Prefix:", GUILayout.Width(80));
+        levelNamePrefix = EditorGUILayout.TextField(levelNamePrefix, GUILayout.Width(100));
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Level Number:", GUILayout.Width(80));
+        currentLevelNumber = EditorGUILayout.IntField(currentLevelNumber, GUILayout.Width(60));
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Save Folder:", GUILayout.Width(80));
+        levelsFolder = EditorGUILayout.TextField(levelsFolder);
+        EditorGUILayout.EndHorizontal();
+
+        // Preview
+        string previewName = $"{levelNamePrefix}{currentLevelNumber:00}";
+        string fullPath = $"{levelsFolder}{previewName}.unity";
+        EditorGUILayout.LabelField($"Preview: {fullPath}", EditorStyles.helpBox);
+
+        EditorGUILayout.Space(5);
+
+        // Action buttons
+        EditorGUILayout.BeginHorizontal();
+
+        // Save current scene as level
+        GUI.backgroundColor = Color.green;
+        if (GUILayout.Button($"Save as {previewName}", GUILayout.Height(30)))
+        {
+            SaveCurrentSceneAsLevel();
+        }
+
+        // Auto-increment checkbox
+        GUI.backgroundColor = Color.white;
+        autoIncrementLevel = EditorGUILayout.Toggle(autoIncrementLevel, GUILayout.Width(20));
+        EditorGUILayout.LabelField("Auto +1", GUILayout.Width(50));
+
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(5);
+
+        // Quick save buttons
+        EditorGUILayout.LabelField("Quick Save:", EditorStyles.miniLabel);
+        EditorGUILayout.BeginHorizontal();
+
+        for (int i = 1; i <= 5; i++)
+        {
+            string quickName = $"{levelNamePrefix}{i:00}";
+            if (GUILayout.Button(quickName, GUILayout.Width(60)))
+            {
+                currentLevelNumber = i;
+                SaveCurrentSceneAsLevel();
+            }
+        }
+
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(5);
+
+        // Management buttons
+        EditorGUILayout.LabelField("Level Management:", EditorStyles.miniLabel);
+
+        EditorGUILayout.BeginHorizontal();
+
+        GUI.backgroundColor = Color.cyan;
+        if (GUILayout.Button("Open Levels Folder", GUILayout.Height(25)))
+        {
+            OpenLevelsFolder();
+        }
+
+        GUI.backgroundColor = Color.yellow;
+        if (GUILayout.Button("List All Levels", GUILayout.Height(25)))
+        {
+            ListAllLevels();
+        }
+
+        GUI.backgroundColor = Color.white;
+
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(5);
+
+        // Info box
+        EditorGUILayout.HelpBox(
+            "Scene Level System:\n" +
+            "• Saves complete scene copy with all assets\n" +
+            "• Includes Camera, Canvas, GameManager, etc.\n" +
+            "• Easy to load/test individual levels\n" +
+            "• Build Settings'e otomatik eklenir",
+            MessageType.Info
+        );
+
+        EditorGUILayout.EndVertical();
+    }
+
     void DrawShapeSettings()
     {
         EditorGUILayout.LabelField("Grid Editing", EditorStyles.boldLabel);
@@ -394,6 +632,215 @@ public class GridLevelDesignTool : Editor
         );
     }
 
+    #endregion
+
+    #region Scene Level Manager Methods
+
+    void SaveCurrentSceneAsLevel()
+    {
+        string sceneName = $"{levelNamePrefix}{currentLevelNumber:00}";
+        string fullPath = $"{levelsFolder}{sceneName}.unity";
+
+        Debug.Log($"=== SAVING SCENE AS LEVEL ===");
+        Debug.Log($"Level Name: {sceneName}");
+        Debug.Log($"Full Path: {fullPath}");
+
+        try
+        {
+            // Levels klasörünü oluştur (yoksa)
+            string folderPath = levelsFolder.Replace("Assets/", "");
+            if (!AssetDatabase.IsValidFolder(levelsFolder.TrimEnd('/')))
+            {
+                string[] folders = folderPath.Split('/');
+                string currentPath = "Assets";
+
+                foreach (string folder in folders)
+                {
+                    if (!string.IsNullOrEmpty(folder))
+                    {
+                        string newPath = $"{currentPath}/{folder}";
+                        if (!AssetDatabase.IsValidFolder(newPath))
+                        {
+                            AssetDatabase.CreateFolder(currentPath, folder);
+                            Debug.Log($"Created folder: {newPath}");
+                        }
+                        currentPath = newPath;
+                    }
+                }
+            }
+
+            // Önce mevcut sahneyi kaydet
+            if (EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene()))
+            {
+                Debug.Log("✅ Current scene saved");
+            }
+
+            // Sahneyi kopyala
+            bool success = AssetDatabase.CopyAsset(EditorSceneManager.GetActiveScene().path, fullPath);
+
+            if (success)
+            {
+                // Build Settings'e ekle
+                AddSceneToBuildSettings(fullPath);
+
+                // Level data kaydet (JSON backup)
+                SaveLevelDataBackup(sceneName);
+
+                AssetDatabase.Refresh();
+
+                // Success dialog
+                EditorUtility.DisplayDialog("Level Saved Successfully!",
+                    $"Scene saved as: {sceneName}\n\n" +
+                    $"Location: {fullPath}\n" +
+                    $"Added to Build Settings\n" +
+                    $"JSON backup created", "OK");
+
+                Debug.Log($"✅ Level saved successfully: {sceneName}");
+
+                // Auto increment
+                if (autoIncrementLevel)
+                {
+                    currentLevelNumber++;
+                }
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("Save Failed",
+                    $"Failed to save scene as {sceneName}\n" +
+                    $"Check console for details.", "OK");
+                Debug.LogError($"❌ Failed to save scene: {fullPath}");
+            }
+        }
+        catch (System.Exception e)
+        {
+            EditorUtility.DisplayDialog("Error",
+                $"Error saving level: {e.Message}", "OK");
+            Debug.LogError($"❌ Exception saving level: {e.Message}");
+        }
+
+        Debug.Log("=== SAVE SCENE AS LEVEL COMPLETED ===");
+    }
+
+    void AddSceneToBuildSettings(string scenePath)
+    {
+        // Build Settings'deki mevcut scene'leri al
+        var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
+
+        // Bu scene zaten var mı kontrol et
+        bool sceneExists = scenes.Any(scene => scene.path == scenePath);
+
+        if (!sceneExists)
+        {
+            // Yeni scene ekle
+            scenes.Add(new EditorBuildSettingsScene(scenePath, true));
+            EditorBuildSettings.scenes = scenes.ToArray();
+
+            Debug.Log($"✅ Added to Build Settings: {scenePath}");
+        }
+        else
+        {
+            Debug.Log($"ℹ️ Scene already in Build Settings: {scenePath}");
+        }
+    }
+
+    void SaveLevelDataBackup(string levelName)
+    {
+        try
+        {
+            // LevelData oluştur
+            LevelData levelData = CreateLevelData();
+            levelData.levelName = levelName;
+
+            // JSON olarak kaydet
+            string json = JsonUtility.ToJson(levelData, true);
+            string jsonPath = $"{levelsFolder}{levelName}_data.json";
+
+            System.IO.File.WriteAllText(jsonPath, json);
+            AssetDatabase.Refresh();
+
+            Debug.Log($"✅ Level data backup saved: {jsonPath}");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"⚠️ Could not save level data backup: {e.Message}");
+        }
+    }
+
+    void OpenLevelsFolder()
+    {
+        string absolutePath = System.IO.Path.GetFullPath(levelsFolder);
+
+        if (System.IO.Directory.Exists(absolutePath))
+        {
+            EditorUtility.RevealInFinder(absolutePath);
+            Debug.Log($"Opened folder: {absolutePath}");
+        }
+        else
+        {
+            EditorUtility.DisplayDialog("Folder Not Found",
+                $"Levels folder does not exist:\n{absolutePath}\n\n" +
+                "Create it by saving a level first.", "OK");
+        }
+    }
+
+    void ListAllLevels()
+    {
+        Debug.Log("=== ALL LEVELS IN PROJECT ===");
+
+        if (!AssetDatabase.IsValidFolder(levelsFolder.TrimEnd('/')))
+        {
+            Debug.LogWarning("Levels folder does not exist!");
+            EditorUtility.DisplayDialog("No Levels Found",
+                "Levels folder does not exist. Create levels first.", "OK");
+            return;
+        }
+
+        // Scene dosyalarını bul
+        string[] sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { levelsFolder.TrimEnd('/') });
+
+        if (sceneGuids.Length == 0)
+        {
+            Debug.Log("No level scenes found.");
+            EditorUtility.DisplayDialog("No Levels",
+                "No level scenes found in the levels folder.", "OK");
+            return;
+        }
+
+        Debug.Log($"Found {sceneGuids.Length} level(s):");
+
+        List<string> levelList = new List<string>();
+
+        foreach (string guid in sceneGuids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(path);
+
+            Debug.Log($"  • {fileName} ({path})");
+            levelList.Add(fileName);
+        }
+
+        // Dialog ile göster
+        string levelNames = string.Join("\n", levelList);
+        EditorUtility.DisplayDialog("Level List",
+            $"Found {sceneGuids.Length} levels:\n\n{levelNames}", "OK");
+    }
+
+    void DrawSceneLevelManagerSafe()
+    {
+        try
+        {
+            DrawSceneLevelManager();
+        }
+        catch (System.Exception e)
+        {
+            EditorGUILayout.HelpBox($"Scene Level Manager Error: {e.Message}", MessageType.Error);
+        }
+    }
+
+    #endregion
+
+    #region Utility Methods
+
     void FillAllPlayArea(bool playArea)
     {
         if (gridManager == null)
@@ -461,7 +908,80 @@ public class GridLevelDesignTool : Editor
         }
     }
 
-    // === BUS SEQUENCE METHODS ===
+    string FormatTime(float timeInSeconds, TimerDisplayFormat format)
+    {
+        int totalSeconds = Mathf.FloorToInt(timeInSeconds);
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        int milliseconds = Mathf.FloorToInt((timeInSeconds - totalSeconds) * 100);
+
+        switch (format)
+        {
+            case TimerDisplayFormat.SecondsOnly:
+                return totalSeconds.ToString();
+
+            case TimerDisplayFormat.MinutesSeconds:
+                return $"{minutes}:{seconds:00}";
+
+            case TimerDisplayFormat.MinutesSecondsMs:
+                return $"{minutes}:{seconds:00}:{milliseconds:00}";
+
+            default:
+                return $"{minutes}:{seconds:00}";
+        }
+    }
+
+    void SaveTimerSettings()
+    {
+        Debug.Log("=== SAVING TIMER SETTINGS ===");
+
+        // LevelData oluştur
+        LevelData tempLevelData = CreateLevelData();
+
+        // Timer ayarlarını ekle
+        tempLevelData.timerEnabled = enableLevelTimer;
+        tempLevelData.levelTimeInSeconds = levelTimeInSeconds;
+        tempLevelData.timerFormat = timerFormat;
+
+        // GameManager'a gönder
+        GameManager gameManager = FindObjectOfType<GameManager>();
+        if (gameManager != null)
+        {
+            gameManager.currentLevelData = tempLevelData;
+            if (TimerUI.Instance != null)
+            {
+                TimerUI.Instance.UpdateTimerSettings(levelTimeInSeconds, timerFormat, enableLevelTimer);
+                Debug.Log($"✅ TimerUI updated with new settings");
+            }
+
+            EditorUtility.SetDirty(gameManager);
+
+            string statusMessage = enableLevelTimer ?
+                $"Timer: {FormatTime(levelTimeInSeconds, timerFormat)} ({timerFormat})" :
+                "Timer: Disabled";
+
+            EditorUtility.DisplayDialog("Timer Settings Saved",
+                $"Timer settings saved successfully!\n\n" +
+                $"{statusMessage}\n\n" +
+                "Changes will take effect immediately in Play mode.", "OK");
+
+            Debug.Log($"✅ Timer settings saved: Enabled={enableLevelTimer}, Time={levelTimeInSeconds}s, Format={timerFormat}");
+        }
+        else
+        {
+            EditorUtility.DisplayDialog("GameManager Not Found",
+                "Could not find GameManager in the scene.\n" +
+                "Make sure GameManager is in the scene.", "OK");
+            Debug.LogWarning("❌ GameManager not found!");
+        }
+
+        Debug.Log("=== SAVE TIMER SETTINGS COMPLETED ===");
+    }
+
+    #endregion
+
+    #region Bus Sequence Methods
+
     void AddBusToSequence()
     {
         BusData newBus = new BusData
@@ -551,7 +1071,113 @@ public class GridLevelDesignTool : Editor
         EditorUtility.SetDirty(gridManager);
     }
 
-    // === SCENE GUI METHODS ===
+    void SaveCurrentBusSequence()
+    {
+        Debug.Log("=== SAVING CURRENT BUS SEQUENCE ===");
+
+        if (busSequence.Count == 0)
+        {
+            EditorUtility.DisplayDialog("No Bus Sequence",
+                "There are no buses in the sequence to save.", "OK");
+            return;
+        }
+
+        Debug.Log($"Current bus sequence ({busSequence.Count} buses):");
+        for (int i = 0; i < busSequence.Count; i++)
+        {
+            Debug.Log($"  Bus {i}: {busSequence[i].color} (Capacity: {busSequence[i].capacity})");
+        }
+
+        // GridManager'ın runtimePlayAreaData'sına bus sequence'ı da ekle
+        gridManager.SaveCurrentPlayAreaState();
+
+        // Manuel olarak LevelData oluştur ve kaydet
+        LevelData tempLevelData = CreateLevelData();
+
+        // JSON olarak kaydet
+        string json = JsonUtility.ToJson(tempLevelData, true);
+        string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        string path = $"Assets/BusSequence_Backup_{timestamp}.json";
+
+        System.IO.File.WriteAllText(path, json);
+        AssetDatabase.Refresh();
+
+        EditorUtility.DisplayDialog("Bus Sequence Saved",
+            $"Bus sequence saved successfully!\n" +
+            $"Buses: {busSequence.Count}\n" +
+            $"Backup file: {path}", "OK");
+
+        Debug.Log($"✅ Bus sequence saved to: {path}");
+        Debug.Log("=== SAVE COMPLETED ===");
+    }
+
+    void ForceUpdateGridManagerBusData()
+    {
+        Debug.Log("=== FORCE UPDATE GRIDMANAGER BUS DATA ===");
+
+        if (busSequence.Count == 0)
+        {
+            EditorUtility.DisplayDialog("No Bus Data",
+                "There are no buses to update.", "OK");
+            return;
+        }
+
+        // Manuel olarak GameManager'ı bul ve güncelle
+        GameManager gameManager = FindObjectOfType<GameManager>();
+        if (gameManager != null)
+        {
+            // Bus sequence'ı GameManager'a manual ata
+            gameManager.allBuses.Clear();
+
+            for (int i = 0; i < busSequence.Count; i++)
+            {
+                BusData busCopy = new BusData(busSequence[i].color, busSequence[i].capacity);
+                gameManager.allBuses.Add(busCopy);
+                Debug.Log($"  Added Bus {i}: {busCopy.color} (Capacity: {busCopy.capacity})");
+            }
+
+            Debug.Log($"✅ Updated GameManager with {gameManager.allBuses.Count} buses");
+
+            // Manual bus sequence field'ını da güncelle
+            if (gameManager.manualBusSequence != null)
+            {
+                gameManager.manualBusSequence.Clear();
+                for (int i = 0; i < busSequence.Count; i++)
+                {
+                    BusData busCopy = new BusData(busSequence[i].color, busSequence[i].capacity);
+                    gameManager.manualBusSequence.Add(busCopy);
+                }
+                Debug.Log($"✅ Also updated manualBusSequence");
+            }
+
+            // Level data'yı da oluştur
+            LevelData tempLevelData = CreateLevelData();
+            gameManager.currentLevelData = tempLevelData;
+            Debug.Log($"✅ Updated currentLevelData");
+
+            EditorUtility.SetDirty(gameManager);
+
+            EditorUtility.DisplayDialog("GameManager Updated",
+                $"Successfully updated GameManager!\n" +
+                $"Buses: {gameManager.allBuses.Count}\n" +
+                "Changes will take effect immediately in Play mode.\n\n" +
+                "Press Play to test the new bus sequence!", "OK");
+        }
+        else
+        {
+            Debug.LogWarning("❌ GameManager not found in scene!");
+            EditorUtility.DisplayDialog("GameManager Not Found",
+                "Could not find GameManager in the scene.\n" +
+                "Make sure GameManager is in the scene.", "OK");
+        }
+
+        Debug.Log("=== FORCE UPDATE COMPLETED ===");
+    }
+
+    #endregion
+
+    #region Scene GUI Methods
+
     static void OnSceneGUI(SceneView sceneView)
     {
         foreach (var editor in Resources.FindObjectsOfTypeAll<GridLevelDesignTool>())
@@ -760,7 +1386,10 @@ public class GridLevelDesignTool : Editor
         Handles.EndGUI();
     }
 
-    // === FILE OPERATIONS ===
+    #endregion
+
+    #region File Operations
+
     void ClearAllObjects()
     {
         if (EditorUtility.DisplayDialog("Clear All Objects",
@@ -828,6 +1457,11 @@ public class GridLevelDesignTool : Editor
         levelData.busSequence = new List<BusData>(busSequence);
         levelData.playAreaData = new List<PlayAreaCellData>();
 
+        // Timer ayarlarını ekle
+        levelData.timerEnabled = enableLevelTimer;
+        levelData.levelTimeInSeconds = levelTimeInSeconds;
+        levelData.timerFormat = timerFormat;
+
         for (int x = 0; x < gridManager.gridWidth; x++)
         {
             for (int z = 0; z < gridManager.gridHeight; z++)
@@ -876,6 +1510,11 @@ public class GridLevelDesignTool : Editor
             busSequence = new List<BusData>(levelData.busSequence);
         }
 
+        // Timer ayarlarını yükle
+        enableLevelTimer = levelData.timerEnabled;
+        levelTimeInSeconds = levelData.levelTimeInSeconds;
+        timerFormat = levelData.timerFormat;
+
         if (levelData.playAreaData != null)
         {
             foreach (var areaData in levelData.playAreaData)
@@ -902,145 +1541,129 @@ public class GridLevelDesignTool : Editor
         }
     }
 
+    #endregion
+
+    #region Inspector GUI
+
     public override void OnInspectorGUI()
-{
-    DrawDefaultInspector();
-
-    EditorGUILayout.Space(10);
-    EditorGUILayout.LabelField("Level Design Tool", EditorStyles.boldLabel);
-
-    if (gridManager != null)
     {
-        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-        EditorGUILayout.LabelField("Grid Status:", EditorStyles.boldLabel);
+        DrawDefaultInspector();
 
-        EditorGUILayout.LabelField($"• Initialized: {gridManager.IsGridInitialized}");
-        EditorGUILayout.LabelField($"• Dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}");
+        EditorGUILayout.Space(10);
+        EditorGUILayout.LabelField("Level Design Tool", EditorStyles.boldLabel);
 
-        if (gridManager.IsGridInitialized)
+        if (gridManager != null)
         {
-            int nullCells = 0;
-            for (int x = 0; x < Mathf.Min(5, gridManager.gridWidth); x++)
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField("Grid Status:", EditorStyles.boldLabel);
+
+            EditorGUILayout.LabelField($"• Initialized: {gridManager.IsGridInitialized}");
+            EditorGUILayout.LabelField($"• Dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}");
+
+            if (gridManager.IsGridInitialized)
             {
-                for (int z = 0; z < Mathf.Min(5, gridManager.gridHeight); z++)
+                int nullCells = 0;
+                for (int x = 0; x < Mathf.Min(5, gridManager.gridWidth); x++)
                 {
-                    if (gridManager.GetCell(x, z) == null) nullCells++;
+                    for (int z = 0; z < Mathf.Min(5, gridManager.gridHeight); z++)
+                    {
+                        if (gridManager.GetCell(x, z) == null) nullCells++;
+                    }
+                }
+
+                if (nullCells > 0)
+                {
+                    EditorGUILayout.LabelField($"• Problem: {nullCells} null cells detected!", EditorStyles.miniLabel);
+                    GUI.color = Color.red;
+                }
+                else
+                {
+                    EditorGUILayout.LabelField("• Status: Grid cells OK", EditorStyles.miniLabel);
+                    GUI.color = Color.green;
                 }
             }
 
-            if (nullCells > 0)
+            GUI.color = Color.white;
+
+            EditorGUILayout.Space(5);
+
+            EditorGUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("FORCE INITIALIZE", GUILayout.Height(25)))
             {
-                EditorGUILayout.LabelField($"• Problem: {nullCells} null cells detected!", EditorStyles.miniLabel);
-                GUI.color = Color.red;
+                gridManager.gridInitialized = false;
+                gridManager.InitializeGrid();
+                EditorUtility.SetDirty(gridManager);
             }
-            else
+
+            if (GUILayout.Button("RECREATE GRID", GUILayout.Height(25)))
             {
-                EditorGUILayout.LabelField("• Status: Grid cells OK", EditorStyles.miniLabel);
-                GUI.color = Color.green;
+                gridManager.ForceGridRecreation();
+                EditorUtility.SetDirty(gridManager);
             }
+
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.EndVertical();
         }
-
-        GUI.color = Color.white;
-
-        EditorGUILayout.Space(5);
-
-        EditorGUILayout.BeginHorizontal();
-
-        if (GUILayout.Button("FORCE INITIALIZE", GUILayout.Height(25)))
+        else
         {
-            gridManager.gridInitialized = false;
-            gridManager.InitializeGrid();
-            EditorUtility.SetDirty(gridManager);
+            EditorGUILayout.HelpBox("GridManager not found!", MessageType.Error);
+            return;
         }
 
-        if (GUILayout.Button("RECREATE GRID", GUILayout.Height(25)))
+        EditorGUILayout.Space(5);
+
+        bool newEditingMode = EditorGUILayout.Toggle("Enable Editing Mode", isEditingMode);
+        if (newEditingMode != isEditingMode)
         {
-            gridManager.ForceGridRecreation();
-            EditorUtility.SetDirty(gridManager);
+            isEditingMode = newEditingMode;
+            SceneView.RepaintAll();
         }
 
-        EditorGUILayout.EndHorizontal();
-        EditorGUILayout.EndVertical(); // Grid Status box kapanışı
-    }
-    else
-    {
-        EditorGUILayout.HelpBox("GridManager not found!", MessageType.Error);
-        return;
-    }
+        if (!isEditingMode) return;
 
-    EditorGUILayout.Space(5);
-
-    bool newEditingMode = EditorGUILayout.Toggle("Enable Editing Mode", isEditingMode);
-    if (newEditingMode != isEditingMode)
-    {
-        isEditingMode = newEditingMode;
-        SceneView.RepaintAll();
-    }
-
-    if (!isEditingMode) return;
-
-    // SAFE GUI DRAWING WITH PROPER ERROR HANDLING
-    try
-    {
-        // Bus Settings
-        EditorGUILayout.Space(10);
-        DrawBusSettingsSafe();
-        
-        EditorGUILayout.Space(5);
-        
-        // Shape Settings
-        DrawShapeSettingsSafe();
-        
-        EditorGUILayout.Space(5);
-        
-        // Person Settings
-        DrawPersonSettingsSafe();
-        
-        EditorGUILayout.Space(10);
-        
-        // Action Buttons
-        DrawActionButtonsSafe();
-        
-        EditorGUILayout.Space(5);
-        
-        // Help Box
-        DrawHelpBoxSafe();
-    }
-    catch (System.Exception e)
-    {
-        Debug.LogError($"GUI Error in Level Design Tool: {e.Message}");
-        
-        // Force end any unclosed layout groups - simplified approach
+        // SAFE GUI DRAWING WITH PROPER ERROR HANDLING
         try
         {
-            // Try to end potential unclosed groups
-            for (int i = 0; i < 10; i++) // Max 10 attempts to prevent infinite loop
-            {
-                try
-                {
-                    GUILayout.EndVertical();
-                }
-                catch
-                {
-                    try
-                    {
-                        GUILayout.EndHorizontal();
-                    }
-                    catch
-                    {
-                        break; // No more groups to close
-                    }
-                }
-            }
+            // Bus Settings
+            EditorGUILayout.Space(10);
+            DrawBusSettingsSafe();
+
+            // Timer Settings
+            EditorGUILayout.Space(5);
+            DrawTimerSettingsSafe();
+
+            // Scene Level Manager - YENİ!
+            EditorGUILayout.Space(5);
+            DrawSceneLevelManagerSafe();
+
+            // Shape Settings
+            EditorGUILayout.Space(5);
+            DrawShapeSettingsSafe();
+
+            // Person Settings
+            EditorGUILayout.Space(5);
+            DrawPersonSettingsSafe();
+
+            // Action Buttons
+            EditorGUILayout.Space(10);
+            DrawActionButtonsSafe();
+
+            // Help Box
+            EditorGUILayout.Space(5);
+            DrawHelpBoxSafe();
         }
-        catch
+        catch (System.Exception e)
         {
-            // If recovery fails, just continue
+            Debug.LogError($"GUI Error in Level Design Tool: {e.Message}");
+
+            EditorGUILayout.HelpBox($"GUI Error occurred: {e.Message}\nTry disabling and re-enabling editing mode.", MessageType.Error);
         }
-        
-        EditorGUILayout.HelpBox($"GUI Error occurred: {e.Message}\nTry disabling and re-enabling editing mode.", MessageType.Error);
     }
-}
+
+    #endregion
+
+    #region Safe Drawing Methods
 
     void DrawBusSettingsSafe()
     {
@@ -1051,6 +1674,18 @@ public class GridLevelDesignTool : Editor
         catch (System.Exception e)
         {
             EditorGUILayout.HelpBox($"Bus Settings Error: {e.Message}", MessageType.Error);
+        }
+    }
+
+    void DrawTimerSettingsSafe()
+    {
+        try
+        {
+            DrawTimerSettings();
+        }
+        catch (System.Exception e)
+        {
+            EditorGUILayout.HelpBox($"Timer Settings Error: {e.Message}", MessageType.Error);
         }
     }
 
@@ -1102,149 +1737,29 @@ public class GridLevelDesignTool : Editor
         }
     }
 
+    #endregion
+
     public List<BusData> GetBusSequence()
     {
         return new List<BusData>(busSequence);
     }
-
-    // Yeni metodlar - Bus sequence kaydetme
-    void SaveCurrentBusSequence()
-    {
-        Debug.Log("=== SAVING CURRENT BUS SEQUENCE ===");
-
-        if (busSequence.Count == 0)
-        {
-            EditorUtility.DisplayDialog("No Bus Sequence",
-                "There are no buses in the sequence to save.", "OK");
-            return;
-        }
-
-        Debug.Log($"Current bus sequence ({busSequence.Count} buses):");
-        for (int i = 0; i < busSequence.Count; i++)
-        {
-            Debug.Log($"  Bus {i}: {busSequence[i].color} (Capacity: {busSequence[i].capacity})");
-        }
-
-        // GridManager'ın runtimePlayAreaData'sına bus sequence'ı da ekle
-        gridManager.SaveCurrentPlayAreaState();
-
-        // Manuel olarak LevelData oluştur ve kaydet
-        LevelData tempLevelData = CreateLevelData();
-
-        // JSON olarak kaydet
-        string json = JsonUtility.ToJson(tempLevelData, true);
-        string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        string path = $"Assets/BusSequence_Backup_{timestamp}.json";
-
-        System.IO.File.WriteAllText(path, json);
-        AssetDatabase.Refresh();
-
-        EditorUtility.DisplayDialog("Bus Sequence Saved",
-            $"Bus sequence saved successfully!\n" +
-            $"Buses: {busSequence.Count}\n" +
-            $"Backup file: {path}", "OK");
-
-        Debug.Log($"✅ Bus sequence saved to: {path}");
-        Debug.Log("=== SAVE COMPLETED ===");
-    }
-
-    void ForceUpdateGridManagerBusData()
-    {
-        Debug.Log("=== FORCE UPDATE GRIDMANAGER BUS DATA ===");
-
-        if (busSequence.Count == 0)
-        {
-            EditorUtility.DisplayDialog("No Bus Data",
-                "There are no buses to update.", "OK");
-            return;
-        }
-
-        // Manuel olarak GameManager'ı bul ve güncelle
-        GameManager gameManager = FindObjectOfType<GameManager>();
-        if (gameManager != null)
-        {
-            // Bus sequence'ı GameManager'a manual ata
-            gameManager.allBuses.Clear();
-
-            for (int i = 0; i < busSequence.Count; i++)
-            {
-                BusData busCopy = new BusData(busSequence[i].color, busSequence[i].capacity);
-                gameManager.allBuses.Add(busCopy);
-                Debug.Log($"  Added Bus {i}: {busCopy.color} (Capacity: {busCopy.capacity})");
-            }
-
-            Debug.Log($"✅ Updated GameManager with {gameManager.allBuses.Count} buses");
-
-            // Manual bus sequence field'ını da güncelle
-            if (gameManager.manualBusSequence != null)
-            {
-                gameManager.manualBusSequence.Clear();
-                for (int i = 0; i < busSequence.Count; i++)
-                {
-                    BusData busCopy = new BusData(busSequence[i].color, busSequence[i].capacity);
-                    gameManager.manualBusSequence.Add(busCopy);
-                }
-                Debug.Log($"✅ Also updated manualBusSequence");
-            }
-
-            // Level data'yı da oluştur
-            LevelData tempLevelData = CreateLevelData();
-            gameManager.currentLevelData = tempLevelData;
-            Debug.Log($"✅ Updated currentLevelData");
-
-            EditorUtility.SetDirty(gameManager);
-
-            EditorUtility.DisplayDialog("GameManager Updated",
-                $"Successfully updated GameManager!\n" +
-                $"Buses: {gameManager.allBuses.Count}\n" +
-                "Changes will take effect immediately in Play mode.\n\n" +
-                "Press Play to test the new bus sequence!", "OK");
-        }
-        else
-        {
-            Debug.LogWarning("❌ GameManager not found in scene!");
-            EditorUtility.DisplayDialog("GameManager Not Found",
-                "Could not find GameManager in the scene.\n" +
-                "Make sure GameManager is in the scene.", "OK");
-        }
-
-        Debug.Log("=== FORCE UPDATE COMPLETED ===");
-    }
 }
 
-public enum EditMode
-{
-    ErasePlayArea,
-    PlacePerson
-}
-
-public enum PersonColor
-{
-    Red = 0,
-    Blue = 1,
-    Green = 2,
-    Yellow = 3,
-    Magenta = 4,
-    Cyan = 5,
-    White = 6,
-    Pink = 7,
-    Orange = 8,
-    Purple = 9
-}
-
-public enum GridObjectType
-{
-    Person
-}
-
+// Data Structures
 [System.Serializable]
 public class LevelData
 {
+    public string levelName = "";
     public int gridWidth;
     public int gridHeight;
     public List<GridObjectData> objects;
     public List<BusData> busSequence;
     public List<PlayAreaCellData> playAreaData;
+
+    [Header("Timer Settings")]
+    public bool timerEnabled = false;
+    public float levelTimeInSeconds = 60f;
+    public TimerDisplayFormat timerFormat = TimerDisplayFormat.MinutesSeconds;
 }
 
 [System.Serializable]
