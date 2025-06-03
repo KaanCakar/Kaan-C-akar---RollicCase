@@ -76,36 +76,42 @@ public class GridLevelDesignTool : Editor
 
     void DrawBusSettings()
     {
-        EditorGUILayout.Space(10);
         showBusSettings = EditorGUILayout.Foldout(showBusSettings, "Bus Sequence Settings", true, EditorStyles.foldoutHeader);
 
-        if (showBusSettings)
-        {
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        if (!showBusSettings) return;
 
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        try
+        {
             EditorGUILayout.LabelField("Configure Bus Order and Properties:", EditorStyles.miniBoldLabel);
             EditorGUILayout.Space(5);
 
             // Add Bus Section
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            EditorGUILayout.LabelField("Add New Bus:", EditorStyles.boldLabel);
-            
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Color:", GUILayout.Width(50));
-            selectedBusColor = (PersonColor)EditorGUILayout.EnumPopup(selectedBusColor, GUILayout.Width(100));
-            EditorGUILayout.EndHorizontal();
-            
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Capacity:", GUILayout.Width(60));
-            selectedBusCapacity = EditorGUILayout.IntSlider(selectedBusCapacity, 1, 6);
-            EditorGUILayout.EndHorizontal();
-
-            EditorGUILayout.Space(3);
-            if (GUILayout.Button("Add Bus", GUILayout.Height(25)))
+            try
             {
-                AddBusToSequence();
+                EditorGUILayout.LabelField("Add New Bus:", EditorStyles.boldLabel);
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Color:", GUILayout.Width(50));
+                selectedBusColor = (PersonColor)EditorGUILayout.EnumPopup(selectedBusColor, GUILayout.Width(100));
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Capacity:", GUILayout.Width(60));
+                selectedBusCapacity = EditorGUILayout.IntSlider(selectedBusCapacity, 1, 6);
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.Space(3);
+                if (GUILayout.Button("Add Bus", GUILayout.Height(25)))
+                {
+                    AddBusToSequence();
+                }
             }
-            EditorGUILayout.EndVertical();
+            finally
+            {
+                EditorGUILayout.EndVertical();
+            }
 
             EditorGUILayout.Space(10);
 
@@ -114,95 +120,114 @@ public class GridLevelDesignTool : Editor
                 EditorGUILayout.LabelField($"Bus Sequence ({busSequence.Count} buses):", EditorStyles.miniBoldLabel);
 
                 busScrollPos = EditorGUILayout.BeginScrollView(busScrollPos, GUILayout.Height(200));
-
-                for (int i = 0; i < busSequence.Count; i++)
+                try
                 {
-                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                    
-                    // Bus info row
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField($"Bus {i + 1}:", EditorStyles.boldLabel, GUILayout.Width(50));
-
-                    Rect colorRect = GUILayoutUtility.GetRect(30, 20, GUILayout.Width(30));
-                    EditorGUI.DrawRect(colorRect, personColors[(int)busSequence[i].color]);
-
-                    EditorGUILayout.LabelField($"{colorNames[(int)busSequence[i].color]}", GUILayout.Width(80));
-                    EditorGUILayout.EndHorizontal();
-                    
-                    // Capacity row
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("Capacity:", GUILayout.Width(60));
-                    
-                    int newCapacity = EditorGUILayout.IntSlider(busSequence[i].capacity, 1, 6);
-                    if (newCapacity != busSequence[i].capacity)
+                    for (int i = 0; i < busSequence.Count; i++)
                     {
-                        var busData = busSequence[i];
-                        busData.capacity = newCapacity;
-                        busSequence[i] = busData;
-                        EditorUtility.SetDirty(gridManager);
-                    }
-                    EditorGUILayout.EndHorizontal();
-                    
-                    // Buttons row
-                    EditorGUILayout.BeginHorizontal();
-                    
-                    // Move Up button
-                    bool canMoveUp = i > 0;
-                    GUI.enabled = canMoveUp;
-                    GUI.backgroundColor = canMoveUp ? Color.cyan : Color.gray;
-                    if (GUILayout.Button("Move Up ↑", GUILayout.Height(25)))
-                    {
-                        SwapBuses(i, i - 1);
-                    }
+                        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                        try
+                        {
+                            // Bus info row
+                            EditorGUILayout.BeginHorizontal();
+                            EditorGUILayout.LabelField($"Bus {i + 1}:", EditorStyles.boldLabel, GUILayout.Width(50));
 
-                    // Move Down button  
-                    bool canMoveDown = i < busSequence.Count - 1;
-                    GUI.enabled = canMoveDown;
-                    GUI.backgroundColor = canMoveDown ? Color.cyan : Color.gray;
-                    if (GUILayout.Button("Move Down ↓", GUILayout.Height(25)))
-                    {
-                        SwapBuses(i, i + 1);
-                    }
+                            Rect colorRect = GUILayoutUtility.GetRect(30, 20, GUILayout.Width(30));
+                            EditorGUI.DrawRect(colorRect, personColors[(int)busSequence[i].color]);
 
-                    // Delete button
-                    GUI.enabled = true;
-                    GUI.backgroundColor = Color.red;
-                    if (GUILayout.Button("Delete ×", GUILayout.Height(25)))
-                    {
-                        RemoveBusFromSequence(i);
-                        GUI.backgroundColor = Color.white;
-                        break;
+                            EditorGUILayout.LabelField($"{colorNames[(int)busSequence[i].color]}", GUILayout.Width(80));
+                            EditorGUILayout.EndHorizontal();
+
+                            // Capacity row
+                            EditorGUILayout.BeginHorizontal();
+                            EditorGUILayout.LabelField("Capacity:", GUILayout.Width(60));
+
+                            int newCapacity = EditorGUILayout.IntSlider(busSequence[i].capacity, 1, 6);
+                            if (newCapacity != busSequence[i].capacity)
+                            {
+                                var busData = busSequence[i];
+                                busData.capacity = newCapacity;
+                                busSequence[i] = busData;
+                                EditorUtility.SetDirty(gridManager);
+                            }
+                            EditorGUILayout.EndHorizontal();
+
+                            // Buttons row
+                            EditorGUILayout.BeginHorizontal();
+                            try
+                            {
+                                // Move Up button
+                                bool canMoveUp = i > 0;
+                                GUI.enabled = canMoveUp;
+                                GUI.backgroundColor = canMoveUp ? Color.cyan : Color.gray;
+                                if (GUILayout.Button("Move Up ↑", GUILayout.Height(25)))
+                                {
+                                    SwapBuses(i, i - 1);
+                                }
+
+                                // Move Down button  
+                                bool canMoveDown = i < busSequence.Count - 1;
+                                GUI.enabled = canMoveDown;
+                                GUI.backgroundColor = canMoveDown ? Color.cyan : Color.gray;
+                                if (GUILayout.Button("Move Down ↓", GUILayout.Height(25)))
+                                {
+                                    SwapBuses(i, i + 1);
+                                }
+
+                                // Delete button
+                                GUI.enabled = true;
+                                GUI.backgroundColor = Color.red;
+                                if (GUILayout.Button("Delete ×", GUILayout.Height(25)))
+                                {
+                                    RemoveBusFromSequence(i);
+                                    GUI.backgroundColor = Color.white;
+                                    break;
+                                }
+                                GUI.backgroundColor = Color.white;
+                            }
+                            finally
+                            {
+                                EditorGUILayout.EndHorizontal();
+                            }
+                        }
+                        finally
+                        {
+                            EditorGUILayout.EndVertical();
+                        }
+
+                        EditorGUILayout.Space(5);
                     }
-                    GUI.backgroundColor = Color.white;
-                    
-                    EditorGUILayout.EndHorizontal();
-                    EditorGUILayout.EndVertical();
-                    
-                    EditorGUILayout.Space(5);
+                }
+                finally
+                {
+                    EditorGUILayout.EndScrollView();
                 }
 
-                EditorGUILayout.EndScrollView();
-                
                 // Bus sequence preview
                 EditorGUILayout.Space(10);
                 EditorGUILayout.LabelField("Bus Order Preview:", EditorStyles.miniBoldLabel);
                 EditorGUILayout.BeginHorizontal();
-                for (int i = 0; i < busSequence.Count; i++)
+                try
                 {
-                    Color oldColor = GUI.backgroundColor;
-                    GUI.backgroundColor = personColors[(int)busSequence[i].color];
-                    
-                    string buttonText = $"{i+1}\n{busSequence[i].color}\n({busSequence[i].capacity})";
-                    GUILayout.Button(buttonText, GUILayout.Width(60), GUILayout.Height(50));
-                    
-                    GUI.backgroundColor = oldColor;
-                    
-                    if (i < busSequence.Count - 1)
+                    for (int i = 0; i < busSequence.Count; i++)
                     {
-                        GUILayout.Label("→", GUILayout.Width(15));
+                        Color oldColor = GUI.backgroundColor;
+                        GUI.backgroundColor = personColors[(int)busSequence[i].color];
+
+                        string buttonText = $"{i + 1}\n{busSequence[i].color}\n({busSequence[i].capacity})";
+                        GUILayout.Button(buttonText, GUILayout.Width(60), GUILayout.Height(50));
+
+                        GUI.backgroundColor = oldColor;
+
+                        if (i < busSequence.Count - 1)
+                        {
+                            GUILayout.Label("→", GUILayout.Width(15));
+                        }
                     }
                 }
-                EditorGUILayout.EndHorizontal();
+                finally
+                {
+                    EditorGUILayout.EndHorizontal();
+                }
             }
             else
             {
@@ -210,40 +235,45 @@ public class GridLevelDesignTool : Editor
             }
 
             EditorGUILayout.Space(10);
-            
+
             // Action buttons
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("Clear All Buses", GUILayout.Height(30)))
+            try
             {
-                ClearBusSequence();
+                if (GUILayout.Button("Clear All Buses", GUILayout.Height(30)))
+                {
+                    ClearBusSequence();
+                }
+                if (GUILayout.Button("Auto-Generate from Grid", GUILayout.Height(30)))
+                {
+                    GenerateBusesFromGrid();
+                }
             }
-            if (GUILayout.Button("Auto-Generate from Grid", GUILayout.Height(30)))
+            finally
             {
-                GenerateBusesFromGrid();
+                EditorGUILayout.EndHorizontal();
             }
-            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(5);
 
             // Save bus sequence buttons
             EditorGUILayout.LabelField("Bus Sequence Save/Load:", EditorStyles.boldLabel);
-            
+
             if (GUILayout.Button("Save Current Bus Sequence", GUILayout.Height(25)))
             {
                 SaveCurrentBusSequence();
             }
-            
+
             if (GUILayout.Button("Force Update GameManager", GUILayout.Height(25)))
             {
                 ForceUpdateGridManagerBusData();
             }
-
-            EditorGUILayout.EndVertical();
-
+        }
+        finally
+        {
             EditorGUILayout.EndVertical();
         }
     }
-
     void DrawShapeSettings()
     {
         EditorGUILayout.LabelField("Grid Editing", EditorStyles.boldLabel);
@@ -434,12 +464,12 @@ public class GridLevelDesignTool : Editor
     // === BUS SEQUENCE METHODS ===
     void AddBusToSequence()
     {
-        BusData newBus = new BusData 
-        { 
-            color = selectedBusColor, 
-            capacity = selectedBusCapacity 
+        BusData newBus = new BusData
+        {
+            color = selectedBusColor,
+            capacity = selectedBusCapacity
         };
-        
+
         busSequence.Add(newBus);
         EditorUtility.SetDirty(gridManager);
         Repaint();
@@ -462,7 +492,7 @@ public class GridLevelDesignTool : Editor
             BusData temp = busSequence[indexA];
             busSequence[indexA] = busSequence[indexB];
             busSequence[indexB] = temp;
-            
+
             EditorUtility.SetDirty(gridManager);
             Repaint();
             SceneView.RepaintAll();
@@ -873,99 +903,202 @@ public class GridLevelDesignTool : Editor
     }
 
     public override void OnInspectorGUI()
+{
+    DrawDefaultInspector();
+
+    EditorGUILayout.Space(10);
+    EditorGUILayout.LabelField("Level Design Tool", EditorStyles.boldLabel);
+
+    if (gridManager != null)
     {
-        DrawDefaultInspector();
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("Grid Status:", EditorStyles.boldLabel);
 
-        EditorGUILayout.Space(10);
-        EditorGUILayout.LabelField("Level Design Tool", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField($"• Initialized: {gridManager.IsGridInitialized}");
+        EditorGUILayout.LabelField($"• Dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}");
 
-        if (gridManager != null)
+        if (gridManager.IsGridInitialized)
         {
-            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            EditorGUILayout.LabelField("Grid Status:", EditorStyles.boldLabel);
-
-            EditorGUILayout.LabelField($"• Initialized: {gridManager.IsGridInitialized}");
-            EditorGUILayout.LabelField($"• Dimensions: {gridManager.gridWidth}x{gridManager.gridHeight}");
-
-            if (gridManager.IsGridInitialized)
+            int nullCells = 0;
+            for (int x = 0; x < Mathf.Min(5, gridManager.gridWidth); x++)
             {
-                int nullCells = 0;
-                for (int x = 0; x < Mathf.Min(5, gridManager.gridWidth); x++)
+                for (int z = 0; z < Mathf.Min(5, gridManager.gridHeight); z++)
                 {
-                    for (int z = 0; z < Mathf.Min(5, gridManager.gridHeight); z++)
-                    {
-                        if (gridManager.GetCell(x, z) == null) nullCells++;
-                    }
-                }
-
-                if (nullCells > 0)
-                {
-                    EditorGUILayout.LabelField($"• Problem: {nullCells} null cells detected!", EditorStyles.miniLabel);
-                    GUI.color = Color.red;
-                }
-                else
-                {
-                    EditorGUILayout.LabelField("• Status: Grid cells OK", EditorStyles.miniLabel);
-                    GUI.color = Color.green;
+                    if (gridManager.GetCell(x, z) == null) nullCells++;
                 }
             }
 
-            GUI.color = Color.white;
-
-            EditorGUILayout.Space(5);
-
-            EditorGUILayout.BeginHorizontal();
-
-            if (GUILayout.Button("FORCE INITIALIZE", GUILayout.Height(25)))
+            if (nullCells > 0)
             {
-                gridManager.gridInitialized = false;
-                gridManager.InitializeGrid();
-                EditorUtility.SetDirty(gridManager);
+                EditorGUILayout.LabelField($"• Problem: {nullCells} null cells detected!", EditorStyles.miniLabel);
+                GUI.color = Color.red;
             }
-
-            if (GUILayout.Button("RECREATE GRID", GUILayout.Height(25)))
+            else
             {
-                gridManager.ForceGridRecreation();
-                EditorUtility.SetDirty(gridManager);
+                EditorGUILayout.LabelField("• Status: Grid cells OK", EditorStyles.miniLabel);
+                GUI.color = Color.green;
             }
-
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.EndVertical(); // Grid Status box kapanışı
         }
-        else
-        {
-            EditorGUILayout.HelpBox("GridManager not found!", MessageType.Error);
-            return;
-        }
+
+        GUI.color = Color.white;
 
         EditorGUILayout.Space(5);
 
-        bool newEditingMode = EditorGUILayout.Toggle("Enable Editing Mode", isEditingMode);
-        if (newEditingMode != isEditingMode)
+        EditorGUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("FORCE INITIALIZE", GUILayout.Height(25)))
         {
-            isEditingMode = newEditingMode;
-            SceneView.RepaintAll();
+            gridManager.gridInitialized = false;
+            gridManager.InitializeGrid();
+            EditorUtility.SetDirty(gridManager);
         }
 
-        if (!isEditingMode) return;
+        if (GUILayout.Button("RECREATE GRID", GUILayout.Height(25)))
+        {
+            gridManager.ForceGridRecreation();
+            EditorUtility.SetDirty(gridManager);
+        }
 
-        // Safe GUI calls with proper begin/end pairs
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.EndVertical(); // Grid Status box kapanışı
+    }
+    else
+    {
+        EditorGUILayout.HelpBox("GridManager not found!", MessageType.Error);
+        return;
+    }
+
+    EditorGUILayout.Space(5);
+
+    bool newEditingMode = EditorGUILayout.Toggle("Enable Editing Mode", isEditingMode);
+    if (newEditingMode != isEditingMode)
+    {
+        isEditingMode = newEditingMode;
+        SceneView.RepaintAll();
+    }
+
+    if (!isEditingMode) return;
+
+    // SAFE GUI DRAWING WITH PROPER ERROR HANDLING
+    try
+    {
+        // Bus Settings
+        EditorGUILayout.Space(10);
+        DrawBusSettingsSafe();
+        
+        EditorGUILayout.Space(5);
+        
+        // Shape Settings
+        DrawShapeSettingsSafe();
+        
+        EditorGUILayout.Space(5);
+        
+        // Person Settings
+        DrawPersonSettingsSafe();
+        
+        EditorGUILayout.Space(10);
+        
+        // Action Buttons
+        DrawActionButtonsSafe();
+        
+        EditorGUILayout.Space(5);
+        
+        // Help Box
+        DrawHelpBoxSafe();
+    }
+    catch (System.Exception e)
+    {
+        Debug.LogError($"GUI Error in Level Design Tool: {e.Message}");
+        
+        // Force end any unclosed layout groups - simplified approach
+        try
+        {
+            // Try to end potential unclosed groups
+            for (int i = 0; i < 10; i++) // Max 10 attempts to prevent infinite loop
+            {
+                try
+                {
+                    GUILayout.EndVertical();
+                }
+                catch
+                {
+                    try
+                    {
+                        GUILayout.EndHorizontal();
+                    }
+                    catch
+                    {
+                        break; // No more groups to close
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // If recovery fails, just continue
+        }
+        
+        EditorGUILayout.HelpBox($"GUI Error occurred: {e.Message}\nTry disabling and re-enabling editing mode.", MessageType.Error);
+    }
+}
+
+    void DrawBusSettingsSafe()
+    {
         try
         {
             DrawBusSettings();
-            EditorGUILayout.Space(5);
+        }
+        catch (System.Exception e)
+        {
+            EditorGUILayout.HelpBox($"Bus Settings Error: {e.Message}", MessageType.Error);
+        }
+    }
+
+    void DrawShapeSettingsSafe()
+    {
+        try
+        {
             DrawShapeSettings();
-            EditorGUILayout.Space(5);
+        }
+        catch (System.Exception e)
+        {
+            EditorGUILayout.HelpBox($"Shape Settings Error: {e.Message}", MessageType.Error);
+        }
+    }
+
+    void DrawPersonSettingsSafe()
+    {
+        try
+        {
             DrawPersonSettings();
-            EditorGUILayout.Space(10);
+        }
+        catch (System.Exception e)
+        {
+            EditorGUILayout.HelpBox($"Person Settings Error: {e.Message}", MessageType.Error);
+        }
+    }
+
+    void DrawActionButtonsSafe()
+    {
+        try
+        {
             DrawActionButtons();
-            EditorGUILayout.Space(5);
+        }
+        catch (System.Exception e)
+        {
+            EditorGUILayout.HelpBox($"Action Buttons Error: {e.Message}", MessageType.Error);
+        }
+    }
+
+    void DrawHelpBoxSafe()
+    {
+        try
+        {
             DrawHelpBox();
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"GUI Error in Level Design Tool: {e.Message}");
-            // Force end any open layout groups (removed invalid GetRectCount usage)
+            EditorGUILayout.HelpBox($"Help Box Error: {e.Message}", MessageType.Error);
         }
     }
 
@@ -978,70 +1111,70 @@ public class GridLevelDesignTool : Editor
     void SaveCurrentBusSequence()
     {
         Debug.Log("=== SAVING CURRENT BUS SEQUENCE ===");
-        
+
         if (busSequence.Count == 0)
         {
-            EditorUtility.DisplayDialog("No Bus Sequence", 
+            EditorUtility.DisplayDialog("No Bus Sequence",
                 "There are no buses in the sequence to save.", "OK");
             return;
         }
-        
+
         Debug.Log($"Current bus sequence ({busSequence.Count} buses):");
         for (int i = 0; i < busSequence.Count; i++)
         {
             Debug.Log($"  Bus {i}: {busSequence[i].color} (Capacity: {busSequence[i].capacity})");
         }
-        
+
         // GridManager'ın runtimePlayAreaData'sına bus sequence'ı da ekle
         gridManager.SaveCurrentPlayAreaState();
-        
+
         // Manuel olarak LevelData oluştur ve kaydet
         LevelData tempLevelData = CreateLevelData();
-        
+
         // JSON olarak kaydet
         string json = JsonUtility.ToJson(tempLevelData, true);
         string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string path = $"Assets/BusSequence_Backup_{timestamp}.json";
-        
+
         System.IO.File.WriteAllText(path, json);
         AssetDatabase.Refresh();
-        
-        EditorUtility.DisplayDialog("Bus Sequence Saved", 
+
+        EditorUtility.DisplayDialog("Bus Sequence Saved",
             $"Bus sequence saved successfully!\n" +
             $"Buses: {busSequence.Count}\n" +
             $"Backup file: {path}", "OK");
-        
+
         Debug.Log($"✅ Bus sequence saved to: {path}");
         Debug.Log("=== SAVE COMPLETED ===");
     }
-    
+
     void ForceUpdateGridManagerBusData()
     {
         Debug.Log("=== FORCE UPDATE GRIDMANAGER BUS DATA ===");
-        
+
         if (busSequence.Count == 0)
         {
-            EditorUtility.DisplayDialog("No Bus Data", 
+            EditorUtility.DisplayDialog("No Bus Data",
                 "There are no buses to update.", "OK");
             return;
         }
-        
+
         // Manuel olarak GameManager'ı bul ve güncelle
         GameManager gameManager = FindObjectOfType<GameManager>();
         if (gameManager != null)
         {
             // Bus sequence'ı GameManager'a manual ata
             gameManager.allBuses.Clear();
-            
+
             for (int i = 0; i < busSequence.Count; i++)
             {
                 BusData busCopy = new BusData(busSequence[i].color, busSequence[i].capacity);
                 gameManager.allBuses.Add(busCopy);
                 Debug.Log($"  Added Bus {i}: {busCopy.color} (Capacity: {busCopy.capacity})");
             }
-            
+
             Debug.Log($"✅ Updated GameManager with {gameManager.allBuses.Count} buses");
-            
+
             // Manual bus sequence field'ını da güncelle
             if (gameManager.manualBusSequence != null)
             {
@@ -1053,15 +1186,15 @@ public class GridLevelDesignTool : Editor
                 }
                 Debug.Log($"✅ Also updated manualBusSequence");
             }
-            
+
             // Level data'yı da oluştur
             LevelData tempLevelData = CreateLevelData();
             gameManager.currentLevelData = tempLevelData;
             Debug.Log($"✅ Updated currentLevelData");
-            
+
             EditorUtility.SetDirty(gameManager);
-            
-            EditorUtility.DisplayDialog("GameManager Updated", 
+
+            EditorUtility.DisplayDialog("GameManager Updated",
                 $"Successfully updated GameManager!\n" +
                 $"Buses: {gameManager.allBuses.Count}\n" +
                 "Changes will take effect immediately in Play mode.\n\n" +
@@ -1070,11 +1203,11 @@ public class GridLevelDesignTool : Editor
         else
         {
             Debug.LogWarning("❌ GameManager not found in scene!");
-            EditorUtility.DisplayDialog("GameManager Not Found", 
+            EditorUtility.DisplayDialog("GameManager Not Found",
                 "Could not find GameManager in the scene.\n" +
                 "Make sure GameManager is in the scene.", "OK");
         }
-        
+
         Debug.Log("=== FORCE UPDATE COMPLETED ===");
     }
 }
