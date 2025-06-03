@@ -47,7 +47,12 @@ public class GridInputHandler : MonoBehaviour
 
     void HandleInput()
     {
-        // Mobil dokunma kontrolü
+        if (GameManager.Instance == null || !GameManager.Instance.isGameActive)
+        {
+            return;
+        }
+
+        // Mobile touch control
         if (Input.touchCount > 0)
         {
             Touch touch = Input.GetTouch(0);
@@ -58,7 +63,7 @@ public class GridInputHandler : MonoBehaviour
             }
         }
 
-        // Editör ve PC için mouse kontrolü
+        // Mouse control for editor and PC
 #if UNITY_EDITOR || UNITY_STANDALONE
         if (Input.GetMouseButtonDown(0))
         {
@@ -71,13 +76,13 @@ public class GridInputHandler : MonoBehaviour
     {
         if (mainCamera == null || gridManager == null) return;
 
-        // Raycast ile grid pozisyonu tespit et
+        // Detect grid position with raycast
         Ray ray = mainCamera.ScreenPointToRay(screenPosition);
         RaycastHit hit;
 
         if (Physics.Raycast(ray, out hit, Mathf.Infinity, gridLayerMask))
         {
-            // Grid pozisyonunu al
+            // Get grid position
             Vector2Int gridPos = gridManager.GetGridPosition(hit.point);
 
             if (gridManager.IsValidPosition(gridPos))
@@ -96,17 +101,17 @@ public class GridInputHandler : MonoBehaviour
     {
         if (cell == null) return;
 
-        // Önceki seçimi temizle
+        // Clear previous selection
         ClearHighlights();
 
-        // Yeni hücreyi seç
+        // Select new cell
         lastSelectedCell = cell;
 
-        // Event'leri tetikle
+        // Trigger events
         OnGridCellSelected?.Invoke(cell);
         OnGridPositionSelected?.Invoke(cell.GetGridPosition());
 
-        // Seçilen hücreyi vurgula
+        // Highlight selected cell
         HighlightCell(cell, Color.green);
 
         Debug.Log($"Selected grid cell: ({cell.x}, {cell.z})");
@@ -155,7 +160,7 @@ public class GridInputHandler : MonoBehaviour
 
         ClearHighlights();
 
-        // Komşu hücreleri al ve hareket edilebilir olanları vurgula
+        // Get neighbors and highlight movable ones
         var neighbors = gridManager.GetNeighbors(fromCell.x, fromCell.z, includeDiagonals);
 
         foreach (var neighbor in neighbors)
@@ -172,7 +177,7 @@ public class GridInputHandler : MonoBehaviour
         return lastSelectedCell;
     }
 
-    // Belirli bir grid pozisyonunu programatik olarak seç
+    // Programmatically select a specific grid position
     public void SelectGridPosition(Vector2Int gridPos)
     {
         if (gridManager != null)
@@ -185,7 +190,7 @@ public class GridInputHandler : MonoBehaviour
         }
     }
 
-    // Grid üzerinde path göster
+    // Show path on grid
     public void ShowPath(List<GridCell> path, Color pathColor)
     {
         ClearHighlights();
@@ -194,11 +199,11 @@ public class GridInputHandler : MonoBehaviour
         {
             Color cellColor = pathColor;
 
-            // Başlangıç ve bitiş noktalarını farklı renkte göster
+            // Show start and end points in different colors
             if (i == 0)
-                cellColor = Color.green; // Başlangıç
+                cellColor = Color.green; // Start
             else if (i == path.Count - 1)
-                cellColor = Color.red;   // Bitiş
+                cellColor = Color.red;   // End
 
             HighlightCell(path[i], cellColor);
         }

@@ -3,7 +3,7 @@ using UnityEngine.Events;
 
 /// <summary>
 /// Kaan Çakar 2025 - GridObject.cs
-/// Final optimized version with Quick Outline integration and visual feedback system
+/// Represents an object on the grid, such as a person.
 /// </summary>
 public class GridObject : MonoBehaviour
 {
@@ -22,17 +22,16 @@ public class GridObject : MonoBehaviour
 
     [Header("Visual Feedback - Quick Outline")]
     public bool useQuickOutline = true;
-    [SerializeField] private Outline outlineComponent; // Quick Outline component
-    
+    [SerializeField] private Outline outlineComponent;
     [Header("Outline Colors")]
-    public Color playableOutlineColor = Color.black;      // Siyah outline
-    public Color nonPlayableFlashColor = Color.red;       // Tıklanamazlar için flash
-    public Color selectedOutlineColor = Color.white;      // Seçili durum için beyaz
-    public float outlineWidth = 4f;                       // Siyah için biraz kalın daha iyi
-    
+    public Color playableOutlineColor = Color.black;
+    public Color nonPlayableFlashColor = Color.red;
+    public Color selectedOutlineColor = Color.white;
+    public float outlineWidth = 3f;
+
     [Header("Visual Settings")]
     public Material[] personMaterials;
-    public GameObject selectionIndicator; // Legacy - artık Quick Outline kullanıyoruz
+    public GameObject selectionIndicator;
 
     [Header("Opacity System")]
     public bool useOpacityForNonPlayable = true;
@@ -51,18 +50,14 @@ public class GridObject : MonoBehaviour
     void Awake()
     {
         objRenderer = GetComponent<Renderer>();
-        
-        // Legacy selection indicator (artık Quick Outline kullanıyoruz)
+
         if (selectionIndicator != null)
             selectionIndicator.SetActive(false);
-        
-        // Quick Outline component'ini al veya ekle
+
         if (useQuickOutline)
         {
             SetupQuickOutline();
         }
-        
-        // Original material'i kaydet (opacity için)
         if (objRenderer != null && useOpacityForNonPlayable)
         {
             originalMaterial = objRenderer.material;
@@ -73,8 +68,6 @@ public class GridObject : MonoBehaviour
     void Start()
     {
         UpdateVisuals();
-        
-        // Delayed check - GameManager initialize olduktan sonra
         StartCoroutine(DelayedPlayableStatusUpdate());
     }
 
@@ -87,22 +80,18 @@ public class GridObject : MonoBehaviour
 
     void SetupQuickOutline()
     {
-        // Outline component'ini al veya ekle
         outlineComponent = GetComponent<Outline>();
         if (outlineComponent == null)
         {
             outlineComponent = gameObject.AddComponent<Outline>();
         }
 
-        // SIYAH OUTLINE AYARLARI
         outlineComponent.OutlineMode = Outline.Mode.OutlineAll;
-        outlineComponent.OutlineColor = playableOutlineColor; // Siyah
-        outlineComponent.OutlineWidth = outlineWidth;         // Biraz kalın
-        
-        // Başlangıçta kapalı
+        outlineComponent.OutlineColor = playableOutlineColor; 
+        outlineComponent.OutlineWidth = outlineWidth;
+
         outlineComponent.enabled = false;
-        
-        Debug.Log($"✅ BLACK Quick Outline setup completed for {personColor}");
+
     }
 
     public void SetOutlineColor(Color color)
@@ -159,39 +148,34 @@ public class GridObject : MonoBehaviour
     void UpdatePlayableVisual()
     {
         Debug.Log($"🎨 UpdatePlayableVisual - Person: {personColor}, Playable: {isPlayable}");
-        
+
         if (useQuickOutline && outlineComponent != null)
         {
-            // 1. SIYAH OUTLINE KONTROLÜ
             outlineComponent.enabled = isPlayable;
-            
+
             if (isPlayable)
             {
-                // Tıklanabilir - SIYAH outline
                 outlineComponent.OutlineColor = playableOutlineColor; // Siyah
                 outlineComponent.OutlineWidth = outlineWidth;
-                Debug.Log($"   🟢 {personColor} - BLACK Outline AÇILDI");
+                Debug.Log($"{personColor} - BLACK Outline AÇILDI");
             }
             else
             {
-                Debug.Log($"   🔴 {personColor} - Outline KAPANDI");
+                Debug.Log($"{personColor} - Outline KAPANDI");
             }
         }
 
-        // 2. OPACITY/RENK KONTROLÜ
         if (useOpacityForNonPlayable && objRenderer != null)
         {
             if (isPlayable)
             {
-                // Tıklanabilir - Original material'i geri yükle
                 RestoreOriginalMaterial();
-                Debug.Log($"   🟢 {personColor} - Normal material restored");
+                Debug.Log($"{personColor} - Normal material restored");
             }
             else
             {
-                // Tıklanamazlar - Transparent/koyulaştırılmış material
                 ApplyNonPlayableMaterial();
-                Debug.Log($"   🔴 {personColor} - Non-playable material applied");
+                Debug.Log($"{personColor} - Non-playable material applied");
             }
         }
     }
@@ -201,14 +185,13 @@ public class GridObject : MonoBehaviour
         if (originalMaterial != null)
         {
             transparentMaterial = new Material(originalMaterial);
-            
-            // Rengi koyulaştır (%60 opaklık)
+
             Color color = transparentMaterial.color;
-            color *= 0.6f; // Koyulaştır
-            color.a = 0.8f; // Hafif transparent
+            color *= 0.6f;
+            color.a = 0.8f;
             transparentMaterial.color = color;
-            
-            Debug.Log($"✅ Non-playable material created for {personColor}");
+
+            Debug.Log($"Non-playable material created for {personColor}");
         }
     }
 
@@ -228,7 +211,6 @@ public class GridObject : MonoBehaviour
         }
         else if (transparentMaterial == null && originalMaterial != null)
         {
-            // Fallback: Rengi direkt koyulaştır
             Color color = GetPersonColorValue(personColor);
             color *= 0.6f;
             objRenderer.material.color = color;
@@ -238,8 +220,6 @@ public class GridObject : MonoBehaviour
     #endregion
 
     #region Public API
-
-    // Manuel olarak playable state'i kontrol et (sadece gerektiğinde)
     public void CheckPlayableStatus()
     {
         if (GameManager.Instance != null && gridCell != null && !isInBus && !isInWaitingGrid)
@@ -252,16 +232,14 @@ public class GridObject : MonoBehaviour
     // Cache-friendly IsPlayable check
     public bool IsPlayable()
     {
-        // Cache'den al, yoksa hesapla
         if (GameManager.Instance != null)
         {
             return GameManager.Instance.IsPersonPlayable(this);
         }
-        
+
         return isPlayable && !isInBus && !isInWaitingGrid;
     }
 
-    // Quick Outline ile outline'ı hızlıca aç/kapat
     public void ToggleOutline(bool enable)
     {
         if (outlineComponent != null)
@@ -270,7 +248,6 @@ public class GridObject : MonoBehaviour
         }
     }
 
-    // Outline rengini anında değiştir
     public void SetTemporaryOutlineColor(Color color)
     {
         if (outlineComponent != null && outlineComponent.enabled)
@@ -285,13 +262,11 @@ public class GridObject : MonoBehaviour
 
     System.Collections.IEnumerator DelayedPlayableStatusUpdate()
     {
-        // GameManager'ı bekle
         while (GameManager.Instance == null)
         {
             yield return new WaitForSeconds(0.1f);
         }
 
-        // GridCell'i bekle
         while (gridCell == null)
         {
             yield return new WaitForSeconds(0.1f);
@@ -299,7 +274,6 @@ public class GridObject : MonoBehaviour
 
         yield return new WaitForSeconds(0.2f);
 
-        // İlk playable state kontrolü
         if (objectType == GridObjectType.Person && !isInBus && !isInWaitingGrid)
         {
             CheckPlayableStatus();
@@ -313,19 +287,17 @@ public class GridObject : MonoBehaviour
 
         UpdateVisuals();
 
-        // Person ise tıklanabilir yap
         if (objectType == GridObjectType.Person)
         {
             MakeClickable();
-            
-            // Grid cell atandıktan sonra playable state'i kontrol et
+
+
             CheckPlayableStatus();
         }
     }
 
     void MakeClickable()
     {
-        // Collider yoksa ekle
         if (GetComponent<Collider>() == null)
         {
             var collider = gameObject.AddComponent<CapsuleCollider>();
@@ -340,6 +312,11 @@ public class GridObject : MonoBehaviour
 
     void OnMouseDown()
     {
+        if (GameManager.Instance == null || !GameManager.Instance.isGameActive)
+        {
+            return;
+        }
+
         if (objectType == GridObjectType.Person && !isInBus && !isInWaitingGrid)
         {
             HandlePersonClick();
@@ -348,12 +325,10 @@ public class GridObject : MonoBehaviour
 
     void HandlePersonClick()
     {
-        // Oynanabilir mi kontrol et
         if (!isPlayable)
         {
             Debug.Log($"Person {personColor} is not playable - blocked on all sides");
-            
-            // Visual feedback - KIRMIZI flash effect
+
             if (outlineComponent != null)
             {
                 StartCoroutine(FlashOutline(nonPlayableFlashColor, 0.5f));
@@ -361,16 +336,13 @@ public class GridObject : MonoBehaviour
             return;
         }
 
-        // Seçim visual feedback - BEYAZ flash sonra siyaha dön
         if (outlineComponent != null)
         {
             StartCoroutine(SelectionFlash());
         }
 
-        // Event'i tetikle
         OnPersonClicked?.Invoke();
 
-        // GameManager'a bildir - OTOMATIK HAREKET BAŞLATILACAK
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnPersonSelected(this);
@@ -383,38 +355,34 @@ public class GridObject : MonoBehaviour
         Debug.Log($"Person clicked: {personColor} at ({gridCell?.x}, {gridCell?.z})");
     }
 
-    // Outline flash effect
     System.Collections.IEnumerator FlashOutline(Color flashColor, float duration)
     {
         if (outlineComponent == null) yield break;
-        
+
         Color originalColor = outlineComponent.OutlineColor;
         bool wasEnabled = outlineComponent.enabled;
-        
+
         // Flash
         outlineComponent.enabled = true;
         outlineComponent.OutlineColor = flashColor;
-        
+
         yield return new WaitForSeconds(duration);
-        
+
         // Restore
         outlineComponent.OutlineColor = originalColor;
         outlineComponent.enabled = wasEnabled;
     }
 
-    // Seçim animasyonu - beyaz flash sonra siyaha dön
     System.Collections.IEnumerator SelectionFlash()
     {
         if (outlineComponent == null) yield break;
-        
+
         Color originalColor = outlineComponent.OutlineColor;
-        
-        // Beyaz flash
-        outlineComponent.OutlineColor = selectedOutlineColor; // Beyaz
+
+        outlineComponent.OutlineColor = selectedOutlineColor;
         yield return new WaitForSeconds(0.2f);
-        
-        // Siyaha geri dön
-        outlineComponent.OutlineColor = originalColor; // Siyah
+
+        outlineComponent.OutlineColor = originalColor;
     }
 
     #endregion
@@ -425,7 +393,6 @@ public class GridObject : MonoBehaviour
     {
         if (objRenderer == null) return;
 
-        // Sadece Person tipi kaldı
         if (objectType == GridObjectType.Person)
         {
             UpdatePersonVisual();
@@ -437,21 +404,19 @@ public class GridObject : MonoBehaviour
     {
         if (objRenderer != null)
         {
-            // Material dizisinden doğru materyali kullan
             if (personMaterials != null && (int)personColor < personMaterials.Length && personMaterials[(int)personColor] != null)
             {
                 objRenderer.material = personMaterials[(int)personColor];
-                originalMaterial = objRenderer.material; // Update original reference
-                Debug.Log($"🎨 Material kullanıldı: {personColor}");
+                originalMaterial = objRenderer.material;
+                Debug.Log($"Material kullanıldı: {personColor}");
             }
             else
             {
-                // Fallback olarak rengi değiştir
                 Color targetColor = GetPersonColorValue(personColor);
                 objRenderer.material.color = targetColor;
-                Debug.Log($"🎨 Fallback renk kullanıldı: {personColor}");
+                Debug.Log($"Fallback renk kullanıldı: {personColor}");
             }
-            
+
             Debug.Log($"UpdatePersonVisual tamamlandı - {personColor}");
         }
     }
@@ -459,14 +424,12 @@ public class GridObject : MonoBehaviour
     public void SetSelected(bool selected)
     {
         isSelected = selected;
-        
-        // Legacy selection indicator (artık Quick Outline kullanıyoruz)
+
         if (selectionIndicator != null)
         {
             selectionIndicator.SetActive(selected);
         }
 
-        // Quick Outline ile seçim göster
         if (useQuickOutline && outlineComponent != null && selected)
         {
             StartCoroutine(SelectionFlash());
@@ -495,7 +458,6 @@ public class GridObject : MonoBehaviour
 
     #region Movement System
 
-    // Person'ı belirli bir pozisyona hareket ettir
     public void MoveTo(Vector3 newPosition, GridCell newCell = null)
     {
         if (objectType != GridObjectType.Person) return;
@@ -503,13 +465,11 @@ public class GridObject : MonoBehaviour
         targetPosition = newPosition;
         isMoving = true;
 
-        // Eski cell'i boşalt - NULL CHECK
         if (gridCell != null)
         {
             gridCell.SetEmpty();
         }
 
-        // Yeni cell'i işgal et - NULL CHECK
         if (newCell != null)
         {
             gridCell = newCell;
@@ -528,7 +488,6 @@ public class GridObject : MonoBehaviour
             transform.position = targetPosition;
             isMoving = false;
 
-            // Hareket tamamlandığında playable durumu güncelle
             CheckPlayableStatus();
         }
     }
@@ -537,14 +496,12 @@ public class GridObject : MonoBehaviour
 
     #region Bus System
 
-    // Otobüse binme metodu
     public void BoardBus()
     {
         if (objectType != GridObjectType.Person) return;
 
         isInBus = true;
 
-        // Grid cell'i boşalt - NULL CHECK
         if (gridCell != null)
         {
             gridCell.SetEmpty();
@@ -553,7 +510,6 @@ public class GridObject : MonoBehaviour
 
         OnPersonBoarded?.Invoke();
 
-        // Basit otobüse binme animasyonu
         StartCoroutine(BoardBusAnimation());
     }
 
@@ -570,26 +526,22 @@ public class GridObject : MonoBehaviour
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
 
-            // Yukarı hareket + küçülme
             transform.position = Vector3.Lerp(startPos, startPos + busDirection, t);
             transform.localScale = Vector3.Lerp(Vector3.one, Vector3.zero, t);
 
             yield return null;
         }
 
-        // Animasyon tamamlandı
         gameObject.SetActive(false);
         Debug.Log($"{personColor} person boarded the bus");
     }
 
-    // Bekleme gridine gönderme metodu - SADECE STATE DEĞİŞTİRİR
     public void SendToWaitingGrid()
     {
         if (objectType != GridObjectType.Person) return;
 
         isInWaitingGrid = true;
 
-        // Grid cell'i boşalt - NULL CHECK
         if (gridCell != null)
         {
             gridCell.SetEmpty();
@@ -605,7 +557,6 @@ public class GridObject : MonoBehaviour
 
     void OnDestroy()
     {
-        // Memory leak'i önlemek için
         if (transparentMaterial != null)
         {
             if (Application.isPlaying)
@@ -627,37 +578,33 @@ public class GridObject : MonoBehaviour
 
     System.Collections.IEnumerator TestOutlineSequence()
     {
-        Debug.Log("🧪 Testing BLACK Quick Outline states...");
-        
-        // Test 1: Playable (SIYAH outline)
+        Debug.Log("Testing BLACK Quick Outline states...");
+
         SetPlayableState(true);
         Debug.Log("   → Playable: BLACK outline should appear");
         yield return new WaitForSeconds(2f);
-        
-        // Test 2: Non-playable (outline kapalı + koyulaştırılmış)
+
         SetPlayableState(false);
         Debug.Log("   → Non-playable: Outline should disappear, material should darken");
         yield return new WaitForSeconds(2f);
-        
-        // Test 3: Flash effect (KIRMIZI outline)
+
         Debug.Log("   → Testing RED flash effect...");
         StartCoroutine(FlashOutline(Color.red, 1f));
         yield return new WaitForSeconds(1.5f);
-        
-        // Test 4: Selection flash (BEYAZ → SIYAH)
+
         SetPlayableState(true);
         Debug.Log("   → Testing selection flash (WHITE → BLACK)...");
         StartCoroutine(SelectionFlash());
         yield return new WaitForSeconds(1f);
-        
-        Debug.Log("🧪 BLACK Quick Outline test completed!");
+
+        Debug.Log("BLACK Quick Outline test completed!");
     }
 
     [ContextMenu("Force Update Playable State")]
     void ForceUpdatePlayableState()
     {
         CheckPlayableStatus();
-        Debug.Log($"🔄 Forced playable update: {isPlayable}");
+        Debug.Log($"Forced playable update: {isPlayable}");
     }
 
     void OnDrawGizmosSelected()

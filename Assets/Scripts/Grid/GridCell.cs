@@ -18,8 +18,8 @@ public class GridCell
     public bool IsOccupied = false;
 
     [Header("Play Area System")]
-    public bool isPlayArea = true;      // Bu hücre oynanabilir alan mı?
-    public bool isVisible = true;       // Bu hücre görünür mü?
+    public bool isPlayArea = true;
+    public bool isVisible = true;
 
     [Header("References")]
     public GameObject cellObject;
@@ -34,8 +34,8 @@ public class GridCell
         this.z = z;
         this.worldPosition = worldPos;
         this.cellObject = cellObj;
-        this.isPlayArea = true;  // Default: oynanabilir
-        this.isVisible = true;   // Default: görünür
+        this.isPlayArea = true;
+        this.isVisible = true;
     }
 
     public Vector2Int GetGridPosition()
@@ -81,7 +81,6 @@ public class GridCell
         UpdateVisual();
     }
 
-    // Play area sistemini ayarla
     public void SetPlayArea(bool playArea)
     {
         isPlayArea = playArea;
@@ -92,7 +91,6 @@ public class GridCell
     {
         isVisible = visible;
 
-        // Cell objesini aktif/pasif yap
         if (cellObject != null)
         {
             cellObject.SetActive(visible);
@@ -100,6 +98,7 @@ public class GridCell
 
         UpdateVisual();
     }
+
     public void HighlightCell(bool highlight, Color color = default)
     {
         if (!isVisible || cellObject == null) return;
@@ -114,7 +113,7 @@ public class GridCell
 #if UNITY_EDITOR
                 if (!Application.isPlaying)
                 {
-                    // Editör modunda
+                    // In editor mode
                     if (renderer.sharedMaterial != null)
                     {
                         var material = new Material(renderer.sharedMaterial);
@@ -125,7 +124,7 @@ public class GridCell
                 else
 #endif
                 {
-                    // Runtime'da
+                    // In runtime
                     renderer.material.color = highlightColor;
                 }
             }
@@ -147,22 +146,22 @@ public class GridCell
 
             if (!isPlayArea)
             {
-                targetColor = Color.gray;  // Oynanabilir olmayan alan
+                targetColor = Color.gray;  // Non-playable area
             }
             else if (!IsWalkable)
             {
-                targetColor = Color.red;   // Yürünemez alan
+                targetColor = Color.red;   // Non-walkable area
             }
             else if (IsOccupied)
             {
-                targetColor = Color.blue;  // İşgal edilmiş alan
+                targetColor = Color.blue;  // Occupied area
             }
 
-            // EDITOR MODUNDA: sharedMaterial kullan, material leak'i önle
+            // IN EDITOR MODE: use sharedMaterial, prevent material leaks
 #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                // Editör modunda material leak'i önlemek için
+                // In editor mode to prevent material leaks
                 if (renderer.sharedMaterial != null)
                 {
                     var material = new Material(renderer.sharedMaterial);
@@ -173,21 +172,20 @@ public class GridCell
             else
 #endif
             {
-                // Runtime'da normal material kullan
+                // Use normal material in runtime
                 renderer.material.color = targetColor;
             }
         }
     }
 
-
-    // Level design için yardımcı metodlar
+    // Helper methods for level design
     public bool HasPerson()
     {
         return IsOccupied && occupyingObject != null &&
                occupyingObject.GetComponent<GridObject>()?.objectType == GridObjectType.Person;
     }
 
-    // Oynanabilir alan mı kontrol et
+    // Check if in playable area
     public bool IsInPlayArea()
     {
         return isPlayArea && isVisible;

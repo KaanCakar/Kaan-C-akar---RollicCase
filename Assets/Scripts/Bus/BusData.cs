@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Kaan Çakar 2025 - BusData.cs
-/// Enhanced version for dual bus system
+/// Data structure for managing bus state, passengers, and system info.
 /// </summary>
 [System.Serializable]
 public class BusData
@@ -16,11 +16,10 @@ public class BusData
     public BusState state = BusState.Waiting;
 
     [Header("Bus System Info")]
-    public bool isActive = false;           // Bu otobüs aktif mi?
-    public bool isSpawned = false;          // Bu otobüs spawn oldu mu?
-    public float spawnTime = 0f;            // Ne zaman spawn oldu?
+    public bool isActive = false;
+    public bool isSpawned = false;
+    public float spawnTime = 0f;
 
-    // Constructor
     public BusData()
     {
         color = PersonColor.Red;
@@ -43,7 +42,7 @@ public class BusData
         spawnTime = 0f;
     }
 
-    // Helper methods
+    // === HELPER METHODS ===
     public bool IsFull()
     {
         return currentPassengers >= capacity;
@@ -68,25 +67,20 @@ public class BusData
     {
         return (float)currentPassengers / capacity * 100f;
     }
-
-    // Add passenger
     public bool AddPassenger()
     {
         if (HasSpace())
         {
             currentPassengers++;
-            Debug.Log($"✅ Passenger added to {color} bus. ({currentPassengers}/{capacity})");
             return true;
         }
         else
         {
-            Debug.LogWarning($"❌ Bus {color} is FULL! Cannot add passenger. ({currentPassengers}/{capacity})");
             return false;
         }
     }
 
-
-    // Remove passenger
+    // Remove a passenger if possible
     public bool RemovePassenger()
     {
         if (currentPassengers > 0)
@@ -97,7 +91,7 @@ public class BusData
         return false;
     }
 
-    // Set as active bus
+    // Set bus state
     public void SetActive(bool active)
     {
         isActive = active;
@@ -165,19 +159,19 @@ public class BusData
         return $"{color} Bus: {currentPassengers}/{capacity} ({state}){statusInfo}";
     }
 
-    // Detailed debug info
-    public string GetDetailedInfo()
-    {
-        return $"Bus Details:\n" +
-               $"  Color: {color}\n" +
-               $"  Capacity: {capacity}\n" +
-               $"  Passengers: {currentPassengers}/{capacity} ({GetOccupancyPercentage():F1}%)\n" +
-               $"  State: {state}\n" +
-               $"  Is Active: {isActive}\n" +
-               $"  Is Spawned: {isSpawned}\n" +
-               $"  Spawn Duration: {GetSpawnDuration():F1}s\n" +
-               $"  Available Seats: {GetAvailableSeats()}\n" +
-               $"  Is Full: {IsFull()}\n" +
-               $"  Is Valid: {IsValid()}";
-    }
+    // // Detailed debug info
+    // public string GetDetailedInfo()
+    // {
+    //     return $"Bus Details:\n" +
+    //            $"  Color: {color}\n" +
+    //            $"  Capacity: {capacity}\n" +
+    //            $"  Passengers: {currentPassengers}/{capacity} ({GetOccupancyPercentage():F1}%)\n" +
+    //            $"  State: {state}\n" +
+    //            $"  Is Active: {isActive}\n" +
+    //            $"  Is Spawned: {isSpawned}\n" +
+    //            $"  Spawn Duration: {GetSpawnDuration():F1}s\n" +
+    //            $"  Available Seats: {GetAvailableSeats()}\n" +
+    //            $"  Is Full: {IsFull()}\n" +
+    //            $"  Is Valid: {IsValid()}";
+    // }
 }

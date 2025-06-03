@@ -10,10 +10,10 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Kaan Çakar 2025 - GridLevelDesignTool.cs
-/// Complete version with Timer System and Scene Level Manager
+/// Grid level design tool for Unity Editor.
 /// </summary>
 
-// Enum tanımlamaları (class dışında)
+// Enums for various settings and configurations
 public enum TimerDisplayFormat
 {
     SecondsOnly,        // "45"
@@ -352,7 +352,6 @@ public class GridLevelDesignTool : Editor
             EditorGUILayout.LabelField("seconds", GUILayout.Width(60));
             EditorGUILayout.EndHorizontal();
 
-            // Hızlı preset'ler
             EditorGUILayout.Space(3);
             EditorGUILayout.LabelField("Quick Presets:", EditorStyles.miniLabel);
 
@@ -386,10 +385,10 @@ public class GridLevelDesignTool : Editor
 
             // Timer info
             EditorGUILayout.HelpBox(
-                "Timer başlatma:\n" +
-                "• İlk person tıklamasında başlar\n" +
-                "• Start() fonksiyonunda değil\n" +
-                "• Süre bitince level kaybedilir",
+                "Timer Info:\n" +
+                "• Starts on first person click\n" +
+                "• Does NOT start in Start() function\n" +
+                "• Level is lost when time runs out",
                 MessageType.Info
             );
 
@@ -647,7 +646,6 @@ public class GridLevelDesignTool : Editor
 
         try
         {
-            // Levels klasörünü oluştur (yoksa)
             string folderPath = levelsFolder.Replace("Assets/", "");
             if (!AssetDatabase.IsValidFolder(levelsFolder.TrimEnd('/')))
             {
@@ -669,35 +667,29 @@ public class GridLevelDesignTool : Editor
                 }
             }
 
-            // Önce mevcut sahneyi kaydet
             if (EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene()))
             {
-                Debug.Log("✅ Current scene saved");
+                Debug.Log("Current scene saved");
             }
 
-            // Sahneyi kopyala
             bool success = AssetDatabase.CopyAsset(EditorSceneManager.GetActiveScene().path, fullPath);
 
             if (success)
             {
-                // Build Settings'e ekle
                 AddSceneToBuildSettings(fullPath);
 
-                // Level data kaydet (JSON backup)
                 SaveLevelDataBackup(sceneName);
 
                 AssetDatabase.Refresh();
 
-                // Success dialog
                 EditorUtility.DisplayDialog("Level Saved Successfully!",
                     $"Scene saved as: {sceneName}\n\n" +
                     $"Location: {fullPath}\n" +
                     $"Added to Build Settings\n" +
                     $"JSON backup created", "OK");
 
-                Debug.Log($"✅ Level saved successfully: {sceneName}");
+                Debug.Log($"Level saved successfully: {sceneName}");
 
-                // Auto increment
                 if (autoIncrementLevel)
                 {
                     currentLevelNumber++;
@@ -708,14 +700,14 @@ public class GridLevelDesignTool : Editor
                 EditorUtility.DisplayDialog("Save Failed",
                     $"Failed to save scene as {sceneName}\n" +
                     $"Check console for details.", "OK");
-                Debug.LogError($"❌ Failed to save scene: {fullPath}");
+                Debug.LogError($"Failed to save scene: {fullPath}");
             }
         }
         catch (System.Exception e)
         {
             EditorUtility.DisplayDialog("Error",
                 $"Error saving level: {e.Message}", "OK");
-            Debug.LogError($"❌ Exception saving level: {e.Message}");
+            Debug.LogError($"Exception saving level: {e.Message}");
         }
 
         Debug.Log("=== SAVE SCENE AS LEVEL COMPLETED ===");
@@ -723,23 +715,20 @@ public class GridLevelDesignTool : Editor
 
     void AddSceneToBuildSettings(string scenePath)
     {
-        // Build Settings'deki mevcut scene'leri al
         var scenes = new List<EditorBuildSettingsScene>(EditorBuildSettings.scenes);
 
-        // Bu scene zaten var mı kontrol et
         bool sceneExists = scenes.Any(scene => scene.path == scenePath);
 
         if (!sceneExists)
         {
-            // Yeni scene ekle
             scenes.Add(new EditorBuildSettingsScene(scenePath, true));
             EditorBuildSettings.scenes = scenes.ToArray();
 
-            Debug.Log($"✅ Added to Build Settings: {scenePath}");
+            Debug.Log($"Added to Build Settings: {scenePath}");
         }
         else
         {
-            Debug.Log($"ℹ️ Scene already in Build Settings: {scenePath}");
+            Debug.Log($"Scene already in Build Settings: {scenePath}");
         }
     }
 
@@ -747,22 +736,20 @@ public class GridLevelDesignTool : Editor
     {
         try
         {
-            // LevelData oluştur
             LevelData levelData = CreateLevelData();
             levelData.levelName = levelName;
 
-            // JSON olarak kaydet
             string json = JsonUtility.ToJson(levelData, true);
             string jsonPath = $"{levelsFolder}{levelName}_data.json";
 
             System.IO.File.WriteAllText(jsonPath, json);
             AssetDatabase.Refresh();
 
-            Debug.Log($"✅ Level data backup saved: {jsonPath}");
+            Debug.Log($"Level data backup saved: {jsonPath}");
         }
         catch (System.Exception e)
         {
-            Debug.LogWarning($"⚠️ Could not save level data backup: {e.Message}");
+            Debug.LogWarning($"Could not save level data backup: {e.Message}");
         }
     }
 
@@ -795,7 +782,6 @@ public class GridLevelDesignTool : Editor
             return;
         }
 
-        // Scene dosyalarını bul
         string[] sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { levelsFolder.TrimEnd('/') });
 
         if (sceneGuids.Length == 0)
@@ -819,7 +805,6 @@ public class GridLevelDesignTool : Editor
             levelList.Add(fileName);
         }
 
-        // Dialog ile göster
         string levelNames = string.Join("\n", levelList);
         EditorUtility.DisplayDialog("Level List",
             $"Found {sceneGuids.Length} levels:\n\n{levelNames}", "OK");
@@ -935,15 +920,12 @@ public class GridLevelDesignTool : Editor
     {
         Debug.Log("=== SAVING TIMER SETTINGS ===");
 
-        // LevelData oluştur
         LevelData tempLevelData = CreateLevelData();
 
-        // Timer ayarlarını ekle
         tempLevelData.timerEnabled = enableLevelTimer;
         tempLevelData.levelTimeInSeconds = levelTimeInSeconds;
         tempLevelData.timerFormat = timerFormat;
 
-        // GameManager'a gönder
         GameManager gameManager = FindObjectOfType<GameManager>();
         if (gameManager != null)
         {
@@ -951,7 +933,7 @@ public class GridLevelDesignTool : Editor
             if (TimerUI.Instance != null)
             {
                 TimerUI.Instance.UpdateTimerSettings(levelTimeInSeconds, timerFormat, enableLevelTimer);
-                Debug.Log($"✅ TimerUI updated with new settings");
+                Debug.Log($"TimerUI updated with new settings");
             }
 
             EditorUtility.SetDirty(gameManager);
@@ -965,14 +947,14 @@ public class GridLevelDesignTool : Editor
                 $"{statusMessage}\n\n" +
                 "Changes will take effect immediately in Play mode.", "OK");
 
-            Debug.Log($"✅ Timer settings saved: Enabled={enableLevelTimer}, Time={levelTimeInSeconds}s, Format={timerFormat}");
+            Debug.Log($"Timer settings saved: Enabled={enableLevelTimer}, Time={levelTimeInSeconds}s, Format={timerFormat}");
         }
         else
         {
             EditorUtility.DisplayDialog("GameManager Not Found",
                 "Could not find GameManager in the scene.\n" +
                 "Make sure GameManager is in the scene.", "OK");
-            Debug.LogWarning("❌ GameManager not found!");
+            Debug.LogWarning("GameManager not found!");
         }
 
         Debug.Log("=== SAVE TIMER SETTINGS COMPLETED ===");
@@ -1088,13 +1070,10 @@ public class GridLevelDesignTool : Editor
             Debug.Log($"  Bus {i}: {busSequence[i].color} (Capacity: {busSequence[i].capacity})");
         }
 
-        // GridManager'ın runtimePlayAreaData'sına bus sequence'ı da ekle
         gridManager.SaveCurrentPlayAreaState();
 
-        // Manuel olarak LevelData oluştur ve kaydet
         LevelData tempLevelData = CreateLevelData();
 
-        // JSON olarak kaydet
         string json = JsonUtility.ToJson(tempLevelData, true);
         string timestamp = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string path = $"Assets/BusSequence_Backup_{timestamp}.json";
@@ -1107,7 +1086,7 @@ public class GridLevelDesignTool : Editor
             $"Buses: {busSequence.Count}\n" +
             $"Backup file: {path}", "OK");
 
-        Debug.Log($"✅ Bus sequence saved to: {path}");
+        Debug.Log($"Bus sequence saved to: {path}");
         Debug.Log("=== SAVE COMPLETED ===");
     }
 
@@ -1122,11 +1101,9 @@ public class GridLevelDesignTool : Editor
             return;
         }
 
-        // Manuel olarak GameManager'ı bul ve güncelle
         GameManager gameManager = FindObjectOfType<GameManager>();
         if (gameManager != null)
         {
-            // Bus sequence'ı GameManager'a manual ata
             gameManager.allBuses.Clear();
 
             for (int i = 0; i < busSequence.Count; i++)
@@ -1136,9 +1113,8 @@ public class GridLevelDesignTool : Editor
                 Debug.Log($"  Added Bus {i}: {busCopy.color} (Capacity: {busCopy.capacity})");
             }
 
-            Debug.Log($"✅ Updated GameManager with {gameManager.allBuses.Count} buses");
+            Debug.Log($"Updated GameManager with {gameManager.allBuses.Count} buses");
 
-            // Manual bus sequence field'ını da güncelle
             if (gameManager.manualBusSequence != null)
             {
                 gameManager.manualBusSequence.Clear();
@@ -1147,13 +1123,12 @@ public class GridLevelDesignTool : Editor
                     BusData busCopy = new BusData(busSequence[i].color, busSequence[i].capacity);
                     gameManager.manualBusSequence.Add(busCopy);
                 }
-                Debug.Log($"✅ Also updated manualBusSequence");
+                Debug.Log($"Also updated manualBusSequence");
             }
 
-            // Level data'yı da oluştur
             LevelData tempLevelData = CreateLevelData();
             gameManager.currentLevelData = tempLevelData;
-            Debug.Log($"✅ Updated currentLevelData");
+            Debug.Log($"Updated currentLevelData");
 
             EditorUtility.SetDirty(gameManager);
 
@@ -1165,7 +1140,7 @@ public class GridLevelDesignTool : Editor
         }
         else
         {
-            Debug.LogWarning("❌ GameManager not found in scene!");
+            Debug.LogWarning("GameManager not found in scene!");
             EditorUtility.DisplayDialog("GameManager Not Found",
                 "Could not find GameManager in the scene.\n" +
                 "Make sure GameManager is in the scene.", "OK");
@@ -1310,7 +1285,6 @@ public class GridLevelDesignTool : Editor
 
         GUILayout.Label("Grid Level Design Tool", EditorStyles.boldLabel);
 
-        // Bus sequence preview
         if (busSequence.Count > 0)
         {
             GUILayout.Label($"Bus Sequence ({busSequence.Count}):", EditorStyles.miniBoldLabel);
@@ -1331,7 +1305,6 @@ public class GridLevelDesignTool : Editor
 
         GUILayout.Space(5);
 
-        // Edit mode buttons
         GUILayout.BeginHorizontal();
         if (GUILayout.Toggle(currentEditMode == EditMode.ErasePlayArea, "Erase", EditorStyles.miniButtonLeft))
             currentEditMode = EditMode.ErasePlayArea;
@@ -1457,7 +1430,6 @@ public class GridLevelDesignTool : Editor
         levelData.busSequence = new List<BusData>(busSequence);
         levelData.playAreaData = new List<PlayAreaCellData>();
 
-        // Timer ayarlarını ekle
         levelData.timerEnabled = enableLevelTimer;
         levelData.levelTimeInSeconds = levelTimeInSeconds;
         levelData.timerFormat = timerFormat;
@@ -1510,7 +1482,6 @@ public class GridLevelDesignTool : Editor
             busSequence = new List<BusData>(levelData.busSequence);
         }
 
-        // Timer ayarlarını yükle
         enableLevelTimer = levelData.timerEnabled;
         levelTimeInSeconds = levelData.levelTimeInSeconds;
         timerFormat = levelData.timerFormat;

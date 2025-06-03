@@ -30,7 +30,7 @@ public class GridCellComponent : MonoBehaviour
         cellRenderer = GetComponent<Renderer>();
         cellCollider = GetComponent<Collider>();
 
-        // Eğer collider yoksa ekle
+        // Add collider if not present
         if (cellCollider == null)
         {
             cellCollider = gameObject.AddComponent<BoxCollider>();
@@ -49,7 +49,7 @@ public class GridCellComponent : MonoBehaviour
         {
             OnCellClicked?.Invoke(gridCell);
 
-            // Grid Manager'a bildir
+            // Notify Grid Manager
             if (GridInputHandler.Instance != null)
             {
                 GridInputHandler.Instance.OnCellClicked(gridCell);

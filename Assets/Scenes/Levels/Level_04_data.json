@@ -1,0 +1,1067 @@
+{
+    "levelName": "Level_04",
+    "gridWidth": 12,
+    "gridHeight": 12,
+    "objects": [
+        {
+            "x": 3,
+            "z": 6,
+            "objectType": 0,
+            "personColor": 6
+        },
+        {
+            "x": 3,
+            "z": 7,
+            "objectType": 0,
+            "personColor": 1
+        },
+        {
+            "x": 3,
+            "z": 8,
+            "objectType": 0,
+            "personColor": 2
+        },
+        {
+            "x": 3,
+            "z": 9,
+            "objectType": 0,
+            "personColor": 2
+        },
+        {
+            "x": 3,
+            "z": 10,
+            "objectType": 0,
+            "personColor": 6
+        },
+        {
+            "x": 3,
+            "z": 11,
+            "objectType": 0,
+            "personColor": 1
+        },
+        {
+            "x": 4,
+            "z": 6,
+            "objectType": 0,
+            "personColor": 6
+        },
+        {
+            "x": 4,
+            "z": 7,
+            "objectType": 0,
+            "personColor": 6
+        },
+        {
+            "x": 4,
+            "z": 8,
+            "objectType": 0,
+            "personColor": 1
+        },
+        {
+            "x": 4,
+            "z": 9,
+            "objectType": 0,
+            "personColor": 8
+        },
+        {
+            "x": 4,
+            "z": 10,
+            "objectType": 0,
+            "personColor": 9
+        },
+        {
+            "x": 4,
+            "z": 11,
+            "objectType": 0,
+            "personColor": 4
+        },
+        {
+            "x": 5,
+            "z": 6,
+            "objectType": 0,
+            "personColor": 6
+        },
+        {
+            "x": 5,
+            "z": 7,
+            "objectType": 0,
+            "personColor": 9
+        },
+        {
+            "x": 5,
+            "z": 8,
+            "objectType": 0,
+            "personColor": 8
+        },
+        {
+            "x": 5,
+            "z": 9,
+            "objectType": 0,
+            "personColor": 2
+        },
+        {
+            "x": 6,
+            "z": 6,
+            "objectType": 0,
+            "personColor": 4
+        },
+        {
+            "x": 6,
+            "z": 7,
+            "objectType": 0,
+            "personColor": 9
+        },
+        {
+            "x": 6,
+            "z": 9,
+            "objectType": 0,
+            "personColor": 6
+        },
+        {
+            "x": 7,
+            "z": 7,
+            "objectType": 0,
+            "personColor": 4
+        },
+        {
+            "x": 7,
+            "z": 8,
+            "objectType": 0,
+            "personColor": 8
+        }
+    ],
+    "busSequence": [
+        {
+            "color": 1,
+            "capacity": 3,
+            "currentPassengers": 0,
+            "state": 1,
+            "isActive": false,
+            "isSpawned": false,
+            "spawnTime": 0.0
+        },
+        {
+            "color": 2,
+            "capacity": 3,
+            "currentPassengers": 0,
+            "state": 1,
+            "isActive": false,
+            "isSpawned": false,
+            "spawnTime": 0.0
+        },
+        {
+            "color": 6,
+            "capacity": 3,
+            "currentPassengers": 0,
+            "state": 1,
+            "isActive": false,
+            "isSpawned": false,
+            "spawnTime": 0.0
+        },
+        {
+            "color": 8,
+            "capacity": 3,
+            "currentPassengers": 0,
+            "state": 1,
+            "isActive": false,
+            "isSpawned": false,
+            "spawnTime": 0.0
+        },
+        {
+            "color": 9,
+            "capacity": 3,
+            "currentPassengers": 0,
+            "state": 1,
+            "isActive": false,
+            "isSpawned": false,
+            "spawnTime": 0.0
+        },
+        {
+            "color": 4,
+            "capacity": 3,
+            "currentPassengers": 0,
+            "state": 1,
+            "isActive": false,
+            "isSpawned": false,
+            "spawnTime": 0.0
+        },
+        {
+            "color": 6,
+            "capacity": 3,
+            "currentPassengers": 0,
+            "state": 1,
+            "isActive": false,
+            "isSpawned": false,
+            "spawnTime": 0.0
+        }
+    ],
+    "playAreaData": [
+        {
+            "x": 0,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 6,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 7,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 8,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 9,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 0,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 6,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 7,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 8,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 9,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 1,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 6,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 7,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 8,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 9,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 2,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 3,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 3,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 3,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 3,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 3,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 3,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 3,
+            "z": 6,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 3,
+            "z": 7,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 3,
+            "z": 8,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 3,
+            "z": 9,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 3,
+            "z": 10,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 3,
+            "z": 11,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 4,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 4,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 4,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 4,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 4,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 4,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 4,
+            "z": 6,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 4,
+            "z": 7,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 4,
+            "z": 8,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 4,
+            "z": 9,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 4,
+            "z": 10,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 4,
+            "z": 11,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 5,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 5,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 5,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 5,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 5,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 5,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 5,
+            "z": 6,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 5,
+            "z": 7,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 5,
+            "z": 8,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 5,
+            "z": 9,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 5,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 5,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 6,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 6,
+            "z": 7,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 6,
+            "z": 8,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 9,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 6,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 6,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 6,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 7,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 7,
+            "z": 8,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 7,
+            "z": 9,
+            "isPlayArea": true,
+            "isVisible": true
+        },
+        {
+            "x": 7,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 7,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 6,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 7,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 8,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 9,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 8,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 6,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 7,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 8,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 9,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 9,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 6,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 7,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 8,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 9,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 10,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 0,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 1,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 2,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 3,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 4,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 5,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 6,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 7,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 8,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 9,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 10,
+            "isPlayArea": false,
+            "isVisible": false
+        },
+        {
+            "x": 11,
+            "z": 11,
+            "isPlayArea": false,
+            "isVisible": false
+        }
+    ],
+    "timerEnabled": true,
+    "levelTimeInSeconds": 120.0,
+    "timerFormat": 1
+}

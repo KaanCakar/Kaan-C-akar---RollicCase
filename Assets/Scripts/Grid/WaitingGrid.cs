@@ -3,7 +3,7 @@ using UnityEngine;
 
 /// <summary>
 /// Kaan Çakar 2025 - WaitingGrid.cs
-/// 3D world space waiting grid next to the bus - Final Version
+/// WaitingGrid is a grid system that manages waiting slots for people.
 /// </summary>
 public class WaitingGrid : MonoBehaviour
 {
@@ -14,7 +14,7 @@ public class WaitingGrid : MonoBehaviour
     public bool arrangeHorizontally = true;
 
     [Header("Slot Visuals")]
-    public GameObject slotPrefab; // Boş slot göstergesi (optional)
+    public GameObject slotPrefab;
     public Material emptySlotMaterial;
     public Material occupiedSlotMaterial;
 
@@ -48,8 +48,7 @@ public class WaitingGrid : MonoBehaviour
         for (int i = 0; i < capacity; i++)
         {
             Vector3 slotPosition = CalculateSlotPosition(i);
-            
-            // Slot objesi oluştur (optional visual)
+        
             GameObject slotObject = null;
             if (slotPrefab != null)
             {
@@ -70,12 +69,10 @@ public class WaitingGrid : MonoBehaviour
 
         if (arrangeHorizontally)
         {
-            // Yatay sıralama
             position += Vector3.right * (index * slotSpacing);
         }
         else
         {
-            // Dikey sıralama
             position += Vector3.forward * (index * slotSpacing);
         }
 
@@ -86,7 +83,6 @@ public class WaitingGrid : MonoBehaviour
     {
         if (IsFull()) return false;
 
-        // Boş slot bul
         for (int i = 0; i < waitingSlots.Count; i++)
         {
             if (waitingSlots[i].IsEmpty())
@@ -94,7 +90,6 @@ public class WaitingGrid : MonoBehaviour
                 waitingSlots[i].SetOccupyingPerson(person);
                 currentOccupiedCount++;
 
-                // Kişiyi bu pozisyona hareket ettir
                 StartCoroutine(MovePersonToSlot(person, waitingSlots[i]));
 
                 Debug.Log($"Person {person.personColor} added to waiting slot {i}");
@@ -145,7 +140,7 @@ public class WaitingGrid : MonoBehaviour
     }
 
     /// <summary>
-    /// Belirli renkteki insanları waiting grid'den al
+    /// Get people in waiting grid by their color
     /// </summary>
     public List<GridObject> GetPeopleByColor(PersonColor color)
     {
@@ -164,7 +159,7 @@ public class WaitingGrid : MonoBehaviour
     }
 
     /// <summary>
-    /// Belirli bir kişiyi waiting grid'den çıkar
+    /// Remove a person from waiting grid by their GridObject reference
     /// </summary>
     public bool RemovePersonByObject(GridObject person)
     {
@@ -184,7 +179,7 @@ public class WaitingGrid : MonoBehaviour
     }
 
     /// <summary>
-    /// Belirli renkteki tüm insanları waiting grid'den çıkar
+    /// Remove all people of a specific color from the waiting grid
     /// </summary>
     public List<GridObject> RemoveAllPeopleByColor(PersonColor color)
     {
@@ -207,7 +202,7 @@ public class WaitingGrid : MonoBehaviour
     }
 
     /// <summary>
-    /// Waiting grid'de belirli renkte kaç kişi var?
+    /// Get the count of people in waiting grid by their color
     /// </summary>
     public int GetPeopleCountByColor(PersonColor color)
     {
@@ -245,16 +240,13 @@ public class WaitingGrid : MonoBehaviour
         return capacity - currentOccupiedCount;
     }
 
-    // Grid pozisyonunu otobüse göre ayarla
     public void SetPositionRelativeToBus(Transform busTransform)
     {
         if (busTransform != null)
         {
-            // Otobüsün yanında pozisyonla
             Vector3 busPosition = busTransform.position;
-            transform.position = busPosition + Vector3.left * 3f; // Otobüsün solunda
+            transform.position = busPosition + Vector3.left * 3f;
             
-            // Slotları yeniden hesapla
             UpdateSlotPositions();
         }
     }
@@ -266,7 +258,6 @@ public class WaitingGrid : MonoBehaviour
             Vector3 newPosition = CalculateSlotPosition(i);
             waitingSlots[i].worldPosition = newPosition;
 
-            // Slot objesinin pozisyonunu güncelle
             if (waitingSlots[i].slotObject != null)
             {
                 waitingSlots[i].slotObject.transform.position = newPosition;
@@ -278,27 +269,23 @@ public class WaitingGrid : MonoBehaviour
     {
         if (!showGizmos) return;
 
-        // Gizmo'ları çiz
         for (int i = 0; i < capacity; i++)
         {
             Vector3 slotPos = CalculateSlotPosition(i);
 
             if (Application.isPlaying && i < waitingSlots.Count)
             {
-                // Runtime'da gerçek durumu göster
                 Gizmos.color = waitingSlots[i].IsEmpty() ? emptySlotColor : occupiedSlotColor;
             }
             else
             {
-                // Editor'da preview göster
                 Gizmos.color = emptySlotColor;
             }
 
             Gizmos.DrawWireCube(slotPos, Vector3.one * 0.8f);
             Gizmos.DrawSphere(slotPos + Vector3.up * 0.5f, 0.2f);
         }
-
-        // Grid bağlantı çizgileri
+        // Draw lines between slots
         Gizmos.color = Color.yellow;
         for (int i = 0; i < capacity - 1; i++)
         {
@@ -314,7 +301,7 @@ public class WaitingSlot
 {
     public int index;
     public Vector3 worldPosition;
-    public GameObject slotObject; // Visual slot object (optional)
+    public GameObject slotObject;
     private GridObject occupyingPerson;
 
     public WaitingSlot(int index, Vector3 position, GameObject slotObj = null)
@@ -339,7 +326,6 @@ public class WaitingSlot
     {
         occupyingPerson = person;
 
-        // Slot visual'ını güncelle
         UpdateSlotVisual();
     }
 
@@ -352,12 +338,10 @@ public class WaitingSlot
         {
             if (occupyingPerson != null)
             {
-                // Kişinin rengini göster
                 renderer.material.color = GridObject.GetPersonColorValue(occupyingPerson.personColor);
             }
             else
             {
-                // Boş slot rengi
                 renderer.material.color = Color.gray;
             }
         }
