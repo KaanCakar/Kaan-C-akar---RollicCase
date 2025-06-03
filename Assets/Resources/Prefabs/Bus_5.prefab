@@ -61,7 +61,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 1ff3955181d667949a055e4e15ec3e8a, type: 2}
+  - {fileID: 2100000, guid: b18f2206a76f54e32bdd4e93339f54f8, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -144,7 +144,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 1ff3955181d667949a055e4e15ec3e8a, type: 2}
+  - {fileID: 2100000, guid: b18f2206a76f54e32bdd4e93339f54f8, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -227,7 +227,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 1ff3955181d667949a055e4e15ec3e8a, type: 2}
+  - {fileID: 2100000, guid: b18f2206a76f54e32bdd4e93339f54f8, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -310,7 +310,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 1ff3955181d667949a055e4e15ec3e8a, type: 2}
+  - {fileID: 2100000, guid: b18f2206a76f54e32bdd4e93339f54f8, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -342,8 +342,9 @@ GameObject:
   m_Component:
   - component: {fileID: 2668875207478291313}
   - component: {fileID: 384136056492632451}
+  - component: {fileID: 7635541556973315614}
   m_Layer: 0
-  m_Name: Bus
+  m_Name: Bus_5
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -386,6 +387,28 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &7635541556973315614
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7078846709022210049}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f06dd1f4d4034f56acafe52e5adb4fb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  busRenderer: {fileID: 7190632450460439073}
+  busColorMaterials: []
+  passengerContainer: {fileID: 97471599540177103}
+  passengerIndicatorPrefab: {fileID: 1459129030653454281, guid: 01227de59b71d48de8d917f2a2176c0a,
+    type: 3}
+  passengerIndicators:
+  - {fileID: 8946596810416286478}
+  - {fileID: 2242949620931869834}
+  - {fileID: 7833651235753631627}
+  busAnimator: {fileID: 384136056492632451}
 --- !u!1 &7587566007554488333
 GameObject:
   m_ObjectHideFlags: 0
@@ -421,9 +444,7 @@ Transform:
   - {fileID: 4170878166096437775}
   - {fileID: 5605482475433431772}
   - {fileID: 2405128254825185077}
-  - {fileID: 7493260700586165553}
-  - {fileID: 1471373501721863728}
-  - {fileID: 8602828330702549428}
+  - {fileID: 97471599540177103}
   m_Father: {fileID: 2668875207478291313}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &8559902616521302423
@@ -454,7 +475,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 1ff3955181d667949a055e4e15ec3e8a, type: 2}
+  - {fileID: 2100000, guid: b18f2206a76f54e32bdd4e93339f54f8, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -476,18 +497,52 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &7830676167021946956
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 97471599540177103}
+  m_Layer: 0
+  m_Name: PassengerContainer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &97471599540177103
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7830676167021946956}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 8602828330702549428}
+  - {fileID: 1471373501721863728}
+  - {fileID: 7493260700586165553}
+  m_Father: {fileID: 2738920081467957855}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &3243959897959790220
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 2738920081467957855}
+    m_TransformParent: {fileID: 97471599540177103}
     m_Modifications:
     - target: {fileID: 3613103634972985862, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
       propertyPath: m_Name
-      value: Chair-6 (1)
+      value: Passenger2
       objectReference: {fileID: 0}
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
@@ -497,7 +552,7 @@ PrefabInstance:
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
       propertyPath: m_LocalScale.y
-      value: 1.6666664
+      value: 1.6666663
       objectReference: {fileID: 0}
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
@@ -570,18 +625,24 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 3243959897959790220}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &2242949620931869834 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3613103634972985862, guid: e98caf04e78223549845f0aca1dd10d4,
+    type: 3}
+  m_PrefabInstance: {fileID: 3243959897959790220}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &5624117394910585096
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 2738920081467957855}
+    m_TransformParent: {fileID: 97471599540177103}
     m_Modifications:
     - target: {fileID: 3613103634972985862, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
       propertyPath: m_Name
-      value: Chair-6 (2)
+      value: Passenger1
       objectReference: {fileID: 0}
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
@@ -591,7 +652,7 @@ PrefabInstance:
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
       propertyPath: m_LocalScale.y
-      value: 1.6666664
+      value: 1.6666663
       objectReference: {fileID: 0}
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
@@ -664,18 +725,24 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 5624117394910585096}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &8946596810416286478 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3613103634972985862, guid: e98caf04e78223549845f0aca1dd10d4,
+    type: 3}
+  m_PrefabInstance: {fileID: 5624117394910585096}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &6814767397624993165
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 2738920081467957855}
+    m_TransformParent: {fileID: 97471599540177103}
     m_Modifications:
     - target: {fileID: 3613103634972985862, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
       propertyPath: m_Name
-      value: Chair-6
+      value: Passenger3
       objectReference: {fileID: 0}
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
@@ -685,7 +752,7 @@ PrefabInstance:
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
       propertyPath: m_LocalScale.y
-      value: 1.6666664
+      value: 1.6666663
       objectReference: {fileID: 0}
     - target: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
         type: 3}
@@ -755,6 +822,12 @@ PrefabInstance:
 --- !u!4 &7493260700586165553 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4138669727151853756, guid: e98caf04e78223549845f0aca1dd10d4,
+    type: 3}
+  m_PrefabInstance: {fileID: 6814767397624993165}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &7833651235753631627 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3613103634972985862, guid: e98caf04e78223549845f0aca1dd10d4,
     type: 3}
   m_PrefabInstance: {fileID: 6814767397624993165}
   m_PrefabAsset: {fileID: 0}

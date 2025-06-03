@@ -3,13 +3,13 @@ using UnityEngine.Events;
 
 /// <summary>
 /// Kaan Çakar 2025 - GridObject.cs
-/// Component for objects placed on the grid (people only - walls removed)
+/// Final optimized version with event-based playable system
 /// </summary>
 public class GridObject : MonoBehaviour
 {
     [Header("Grid Object Info")]
     public GridCell gridCell;
-    public GridObjectType objectType = GridObjectType.Person;  // Sadece Person kaldı
+    public GridObjectType objectType = GridObjectType.Person;
     public PersonColor personColor = PersonColor.Red;
 
     [Header("Person Settings")]
@@ -32,9 +32,7 @@ public class GridObject : MonoBehaviour
     // Person movement
     private Vector3 targetPosition;
     private bool isMoving = false;
-    private bool newPlayable = false;
     private float moveSpeed = 5f;
-
 
     void Awake()
     {
@@ -48,41 +46,27 @@ public class GridObject : MonoBehaviour
     void Start()
     {
         UpdateVisuals();
-
+        
+        // Delayed check - GameManager initialize olduktan sonra
         StartCoroutine(DelayedPlayableStatusUpdate());
     }
 
     void Update()
     {
         HandleMovement();
-
-        if (objectType == GridObjectType.Person && !isInBus && !isInWaitingGrid)
-        {
-            if (GameManager.Instance != null && GameManager.Instance.isGameActive)
-            {
-                if (gridCell != null)
-                {
-                    UpdatePlayableStatus();
-                }
-                else
-                {
-                    if (isPlayable)
-                    {
-                        isPlayable = false;
-                        UpdatePlayableVisual();
-                        Debug.Log($"Person {personColor}: GridCell null, setting playable to false");
-                    }
-                }
-            }
-        }
+        
+        // OPTIMIZED: Playable status update kaldırıldı - artık event-based!
     }
+
     System.Collections.IEnumerator DelayedPlayableStatusUpdate()
     {
+        // GameManager'ı bekle
         while (GameManager.Instance == null)
         {
             yield return new WaitForSeconds(0.1f);
         }
 
+        // GridCell'i bekle
         while (gridCell == null)
         {
             yield return new WaitForSeconds(0.1f);
@@ -90,12 +74,12 @@ public class GridObject : MonoBehaviour
 
         yield return new WaitForSeconds(0.2f);
 
+        // İlk playable state kontrolü
         if (objectType == GridObjectType.Person && !isInBus && !isInWaitingGrid)
         {
-            UpdatePlayableStatus();
+            CheckPlayableStatus();
         }
     }
-
 
     public void Initialize(GridCell cell, GridObjectType type)
     {
@@ -108,6 +92,9 @@ public class GridObject : MonoBehaviour
         if (objectType == GridObjectType.Person)
         {
             MakeClickable();
+            
+            // Grid cell atandıktan sonra playable state'i kontrol et
+            CheckPlayableStatus();
         }
     }
 
@@ -154,40 +141,25 @@ public class GridObject : MonoBehaviour
 
         Debug.Log($"Person clicked: {personColor} at ({gridCell?.x}, {gridCell?.z})");
     }
-     void UpdatePlayableStatus()
+
+    // Event-based playable state sistem
+    public void SetPlayableState(bool playable)
     {
-        if (GameManager.Instance == null)
+        if (isPlayable != playable)
         {
-            bool tempPlayable = false;
-
-            if (tempPlayable != isPlayable)
-            {
-                isPlayable = tempPlayable;
-                UpdatePlayableVisual();
-            }
-            return;
-        }
-
-        if (gridCell == null)
-        {
-            Debug.Log($"Person {personColor}: GridCell is null in UpdatePlayableStatus");
-            
-            bool tempPlayable = false;
-            if (tempPlayable != isPlayable)
-            {
-                isPlayable = tempPlayable;
-                UpdatePlayableVisual();
-            }
-            return;
-        }
-
-        bool tempPlayable2 = GameManager.Instance.CanPersonMove(this);
-
-        if (tempPlayable2 != isPlayable)
-        {
-            isPlayable = tempPlayable2;
+            isPlayable = playable;
             UpdatePlayableVisual();
-            Debug.Log($"Person {personColor} playable status changed to: {isPlayable}");
+            Debug.Log($"Person {personColor} playable state changed to: {isPlayable}");
+        }
+    }
+
+    // Manuel olarak playable state'i kontrol et (sadece gerektiğinde)
+    public void CheckPlayableStatus()
+    {
+        if (GameManager.Instance != null && gridCell != null && !isInBus && !isInWaitingGrid)
+        {
+            bool newPlayable = GameManager.Instance.IsPersonPlayable(this);
+            SetPlayableState(newPlayable);
         }
     }
 
@@ -314,12 +286,12 @@ public class GridObject : MonoBehaviour
             transform.position = targetPosition;
             isMoving = false;
 
-            // Hareket tamamlandığında oynanabilir durumu güncelle
-            UpdatePlayableStatus();
+            // Hareket tamamlandığında playable durumu güncelle
+            CheckPlayableStatus();
         }
     }
 
-    // Otobüse binme metodu - 3D sistem için güncellenmiş
+    // Otobüse binme metodu
     public void BoardBus()
     {
         if (objectType != GridObjectType.Person) return;
@@ -378,14 +350,18 @@ public class GridObject : MonoBehaviour
             gridCell = null;
         }
 
-        // NOTE: Hareket artık WaitingGrid.AddPersonToWaiting() içinde yapılıyor
-        // Bu metod sadece state'i güncelliyor
-
         Debug.Log($"{personColor} person marked for waiting grid");
     }
 
+    // Cache-friendly IsPlayable check
     public bool IsPlayable()
     {
+        // Cache'den al, yoksa hesapla
+        if (GameManager.Instance != null)
+        {
+            return GameManager.Instance.IsPersonPlayable(this);
+        }
+        
         return isPlayable && !isInBus && !isInWaitingGrid;
     }
 

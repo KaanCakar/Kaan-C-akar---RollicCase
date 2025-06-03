@@ -4,7 +4,7 @@ using UnityEngine.Events;
 
 /// <summary>
 /// Kaan Çakar 2025 - GameManager.cs
-/// Main game logic controller for managing game state, levels, buses, and people.
+/// Final version with dual bus system and optimized pathfinding
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -16,18 +16,40 @@ public class GameManager : MonoBehaviour
     public int totalPeople = 0;
     public int peopleInBuses = 0;
 
+    [Header("Dual Bus System")]
+    public Transform busSpawnPoint;        // Otobüslerin spawn olduğu nokta
+    public Transform busActivePosition;    // 1. otobüsün aktif durduğu yer
+    public Transform busWaitingPosition;   // 2. otobüsün beklediği yer (sol tarafta)
+    public Transform busExitPoint;         // Otobüsün çıktığı ve silindiği nokta
+
+    [Header("Bus Objects")]
+    public GameObject currentActiveBus;    // Şu an aktif olan otobüs
+    public GameObject currentWaitingBus;   // Sırada bekleyen otobüs
+    public GameObject busPrefab;           // Fallback otobüs prefab'ı
+
+    [Header("Bus Prefabs")]
+    public GameObject[] busPrefabs = new GameObject[10]; // Her renk için ayrı prefab
+
+    [Header("Bus Animation")]
+    public float busAnimationSpeed = 2f;
+    public AnimationCurve busMoveCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+
     [Header("Bus System")]
     public List<BusData> allBuses = new List<BusData>();
     public BusData currentBus;
     public int currentBusIndex = 0;
-    public Transform busPosition; // Otobüsün bulunduğu pozisyon
-    public GameObject currentBusObject; // Mevcut otobüs objesi
+
+    [Header("Manual Bus Testing")]
+    public List<BusData> manualBusSequence = new List<BusData>();
 
     [Header("3D Waiting Grid System")]
-    public WaitingGrid waitingGrid; // WaitingGrid referansı
+    public WaitingGrid waitingGrid;
 
     [Header("Level Data")]
-    public LevelData currentLevelData; // Inspector'dan atanacak
+    public LevelData currentLevelData;
+
+    [Header("Optimization")]
+    public UnityEvent OnGridStateChanged; // Grid değiştiğinde tetiklenir
 
     [Header("Events")]
     public UnityEvent OnLevelComplete;
@@ -41,9 +63,31 @@ public class GameManager : MonoBehaviour
     public GameObject gameUI;
     public TMPro.TextMeshProUGUI levelText;
 
+    // Bus states
+    public enum BusSystemState
+    {
+        SpawningBuses,     // İlk 2 otobüs spawn oluyor
+        ActiveWaiting,     // 1 aktif, 1 bekliyor
+        MovingBuses,       // Otobüsler hareket ediyor
+        LevelComplete      // Level bitti
+    }
+
+    public BusSystemState busSystemState = BusSystemState.SpawningBuses;
+
+    // Playable durumları cache'le
+    private Dictionary<GridObject, bool> playableCache = new Dictionary<GridObject, bool>();
+    private bool needsPlayableUpdate = true;
+
     private GridManager gridManager;
     private List<GridObject> allPeople = new List<GridObject>();
     private GridObject selectedPerson;
+    private Coroutine busMovementCoroutine;
+
+    // Prefab isimleri
+    private string[] busPrefabNames = {
+        "Bus_0", "Bus_1", "Bus_2", "Bus_3", "Bus_4",
+        "Bus_5", "Bus_6", "Bus_7", "Bus_8", "Bus_9"
+    };
 
     public static GameManager Instance { get; private set; }
 
@@ -67,7 +111,6 @@ public class GameManager : MonoBehaviour
             Debug.LogError("GridManager not found in scene!");
         }
 
-        // Waiting Grid'i bul
         if (waitingGrid == null)
             waitingGrid = FindObjectOfType<WaitingGrid>();
 
@@ -75,6 +118,12 @@ public class GameManager : MonoBehaviour
         {
             Debug.LogError("WaitingGrid not found in scene!");
         }
+
+        // Bus prefab'larını yükle
+        LoadBusPrefabs();
+
+        // Event listener'ı ekle
+        OnGridStateChanged.AddListener(UpdateAllPlayableStates);
 
         InitializeLevel();
         StartLevel();
@@ -84,8 +133,93 @@ public class GameManager : MonoBehaviour
     {
         if (!isGameActive) return;
 
+        // OPTIMIZED: Sadece gerektiğinde playable state'leri güncelle
+        if (needsPlayableUpdate)
+        {
+            UpdateAllPlayableStates();
+            needsPlayableUpdate = false;
+        }
+
         CheckWinCondition();
         CheckLoseCondition();
+    }
+
+    void LoadBusPrefabs()
+    {
+        Debug.Log("=== LOADING BUS PREFABS ===");
+        
+        for (int i = 0; i < 10; i++)
+        {
+            if (busPrefabs[i] == null)
+            {
+                // Resources'tan yükle
+                busPrefabs[i] = Resources.Load<GameObject>($"Prefabs/{busPrefabNames[i]}");
+                
+                if (busPrefabs[i] != null)
+                {
+                    Debug.Log($"✅ Loaded {busPrefabNames[i]}");
+                }
+                else
+                {
+                    Debug.LogWarning($"❌ Could not load {busPrefabNames[i]} from Resources/Prefabs/");
+                }
+            }
+        }
+        
+        Debug.Log("=== BUS PREFABS LOADING COMPLETED ===");
+    }
+
+    // Tüm playable state'leri güncelle (sadece gerektiğinde çağrılır)
+    void UpdateAllPlayableStates()
+    {
+        Debug.Log("=== UPDATING ALL PLAYABLE STATES ===");
+        
+        foreach (var person in allPeople)
+        {
+            if (person != null && !person.isInBus && !person.isInWaitingGrid)
+            {
+                bool newPlayableState = CanPersonMove(person);
+                playableCache[person] = newPlayableState;
+                
+                // GridObject'e playable durumunu bildir
+                person.SetPlayableState(newPlayableState);
+            }
+        }
+        
+        Debug.Log($"Updated playable states for {allPeople.Count} people");
+    }
+
+    // Grid state değiştiğinde çağrılacak metodlar
+    public void TriggerGridStateUpdate()
+    {
+        needsPlayableUpdate = true;
+        OnGridStateChanged?.Invoke();
+    }
+
+    // Person hareket ettikten sonra çağrılır
+    void OnPersonMoved()
+    {
+        TriggerGridStateUpdate();
+    }
+
+    // Bus geldiğinde/gittiğinde çağrılır
+    void OnBusStateChanged()
+    {
+        TriggerGridStateUpdate();
+    }
+
+    // OPTIMIZED: Cache'den playable state'i al
+    public bool IsPersonPlayable(GridObject person)
+    {
+        if (playableCache.ContainsKey(person))
+        {
+            return playableCache[person];
+        }
+        
+        // Cache'de yoksa hesapla ve cache'le
+        bool playable = CanPersonMove(person);
+        playableCache[person] = playable;
+        return playable;
     }
 
     void InitializeLevel()
@@ -116,18 +250,45 @@ public class GameManager : MonoBehaviour
 
     void SetupBuses()
     {
-        allBuses.Clear();
-
-        // Önce level data'dan bus sequence'ı al
-        if (currentLevelData != null && currentLevelData.busSequence != null && currentLevelData.busSequence.Count > 0)
+        Debug.Log("=== SETUP BUSES DEBUG ===");
+        
+        // Önce manual bus sequence'ı kontrol et
+        if (manualBusSequence != null && manualBusSequence.Count > 0)
         {
-            // Level editor'dan gelen bus sequence'ı kullan
+            allBuses = new List<BusData>(manualBusSequence);
+            Debug.Log($"✅ Using MANUAL BUS SEQUENCE ({allBuses.Count} buses):");
+            
+            for (int i = 0; i < allBuses.Count; i++)
+            {
+                Debug.Log($"  Manual Bus {i}: {allBuses[i].color} (Capacity: {allBuses[i].capacity})");
+            }
+        }
+        // Sonra allBuses'ı kontrol et (Tool'dan gelen)
+        else if (allBuses.Count > 0)
+        {
+            Debug.Log($"✅ Using EXISTING ALL BUSES ({allBuses.Count} buses):");
+            
+            for (int i = 0; i < allBuses.Count; i++)
+            {
+                Debug.Log($"  Existing Bus {i}: {allBuses[i].color} (Capacity: {allBuses[i].capacity})");
+            }
+        }
+        // Sonra level data'yı kontrol et
+        else if (currentLevelData != null && currentLevelData.busSequence != null && currentLevelData.busSequence.Count > 0)
+        {
             allBuses = new List<BusData>(currentLevelData.busSequence);
-            Debug.Log($"Loaded {allBuses.Count} buses from level data");
+            Debug.Log($"✅ Using LEVEL DATA ({allBuses.Count} buses):");
+            
+            for (int i = 0; i < allBuses.Count; i++)
+            {
+                Debug.Log($"  Level Bus {i}: {allBuses[i].color} (Capacity: {allBuses[i].capacity})");
+            }
         }
         else
         {
-            // Fallback: Grid'deki renklere göre otomatik oluştur
+            Debug.LogWarning("❌ No bus sequence found! Using auto-generation...");
+            Debug.LogWarning("💡 Use Tool's 'Force Update GameManager' button to set bus sequence!");
+            
             var usedColors = new HashSet<PersonColor>();
 
             foreach (var person in allPeople)
@@ -135,6 +296,7 @@ public class GameManager : MonoBehaviour
                 usedColors.Add(person.personColor);
             }
 
+            allBuses.Clear();
             foreach (var color in usedColors)
             {
                 allBuses.Add(new BusData
@@ -146,6 +308,7 @@ public class GameManager : MonoBehaviour
             }
 
             Debug.Log($"Auto-generated {allBuses.Count} buses from grid colors");
+            Debug.Log("⚠️ These buses are NOT in tool order!");
         }
 
         // Reset passenger counts
@@ -153,6 +316,8 @@ public class GameManager : MonoBehaviour
         {
             bus.currentPassengers = 0;
         }
+        
+        Debug.Log("=== SETUP BUSES DEBUG END ===");
     }
 
     void StartLevel()
@@ -160,67 +325,168 @@ public class GameManager : MonoBehaviour
         isGameActive = true;
         currentBusIndex = 0;
         selectedPerson = null;
+        busSystemState = BusSystemState.SpawningBuses;
 
-        // İlk otobüsü getir
         if (allBuses.Count > 0)
         {
-            ArriveNextBus();
+            StartCoroutine(SpawnInitialBuses());
         }
 
         OnGameMessage?.Invoke($"Level {levelNumber} Started! Click people to move them.");
+        
+        // INITIAL: Playable state'leri hesapla
+        needsPlayableUpdate = true;
     }
 
-    void ArriveNextBus()
+    System.Collections.IEnumerator SpawnInitialBuses()
     {
-        if (currentBusIndex >= allBuses.Count)
+        Debug.Log("=== SPAWNING INITIAL BUSES ===");
+        
+        // İlk otobüsü spawn et (aktif pozisyonda)
+        if (currentBusIndex < allBuses.Count)
         {
-            // Tüm otobüsler geldi, level tamamlandı
-            if (peopleInBuses >= totalPeople)
-            {
-                WinLevel();
-            }
-            return;
+            yield return StartCoroutine(SpawnBusAt(currentBusIndex, busActivePosition, true));
+            currentBusIndex++;
         }
-
-        currentBus = allBuses[currentBusIndex];
-        currentBus.currentPassengers = 0;
-
-        OnBusArrived?.Invoke(currentBus);
-        OnGameMessage?.Invoke($"{currentBus.color} bus has arrived! ({currentBus.capacity} seats)");
-
-        // Waiting grid'deki uygun renkteki insanları otobüse bindir
+        
+        // İkinci otobüsü spawn et (bekleme pozisyonunda)
+        if (currentBusIndex < allBuses.Count)
+        {
+            yield return StartCoroutine(SpawnBusAt(currentBusIndex, busWaitingPosition, false));
+        }
+        
+        busSystemState = BusSystemState.ActiveWaiting;
+        Debug.Log("Initial buses spawned - System ready");
+        
         CheckAndBoardFromWaitingGrid();
-
-        Debug.Log($"Bus arrived: {currentBus.color} with {currentBus.capacity} capacity");
     }
 
-    /// <summary>
-    /// Waiting grid'de otobüs rengine uygun insanları kontrol et ve bindir
-    /// </summary>
+    System.Collections.IEnumerator SpawnBusAt(int busIndex, Transform targetPosition, bool isActive)
+    {
+        if (busIndex >= allBuses.Count) yield break;
+        
+        BusData busData = allBuses[busIndex];
+        Debug.Log($"=== SPAWNING BUS ===");
+        Debug.Log($"Bus: {busData.color} (Index: {(int)busData.color})");
+        Debug.Log($"Target: {targetPosition.name}, Active: {isActive}");
+        
+        // Bus data'yı güncelle
+        busData.MarkAsSpawned();
+        busData.SetActive(isActive);
+        
+        // Doğru prefab'ı seç
+        int colorIndex = (int)busData.color;
+        GameObject selectedPrefab = null;
+        
+        if (colorIndex < busPrefabs.Length && busPrefabs[colorIndex] != null)
+        {
+            selectedPrefab = busPrefabs[colorIndex];
+            Debug.Log($"✅ Using prefab: {selectedPrefab.name}");
+        }
+        else
+        {
+            Debug.LogError($"❌ No prefab found for {busData.color} (index: {colorIndex})");
+            
+            // Fallback: busPrefab kullan (eski sistem)
+            if (busPrefab != null)
+            {
+                selectedPrefab = busPrefab;
+                Debug.Log($"Using fallback prefab: {selectedPrefab.name}");
+            }
+            else
+            {
+                Debug.LogError("❌ No fallback prefab available!");
+                yield break;
+            }
+        }
+        
+        // Prefab'dan instance oluştur
+        GameObject newBus = Instantiate(selectedPrefab, busSpawnPoint.position, busSpawnPoint.rotation);
+        Debug.Log($"✅ Instantiated bus: {newBus.name}");
+        
+        // BusComponent'i al ve setup et
+        BusComponent busComponent = newBus.GetComponent<BusComponent>();
+        if (busComponent != null)
+        {
+            busComponent.Initialize(busData);
+            busComponent.SetAsActiveBus(isActive);
+            
+            // State'i ayarla
+            if (isActive)
+            {
+                busComponent.SetState(BusState.Approaching);
+            }
+            else
+            {
+                busComponent.SetState(BusState.Waiting);
+            }
+            
+            Debug.Log($"✅ BusComponent initialized");
+        }
+        else
+        {
+            Debug.LogError($"❌ No BusComponent found on {newBus.name}!");
+        }
+        
+        if (isActive)
+        {
+            currentActiveBus = newBus;
+            currentBus = busData;
+            OnBusArrived?.Invoke(currentBus);
+            OnGameMessage?.Invoke($"{currentBus.color} bus is ready! ({currentBus.capacity} seats)");
+        }
+        else
+        {
+            currentWaitingBus = newBus;
+            OnGameMessage?.Invoke($"Next: {busData.color} bus is waiting!");
+        }
+        
+        yield return StartCoroutine(MoveBusToPosition(newBus, targetPosition.position));
+        
+        // Hedefe ulaştıktan sonra state'i güncelle
+        if (busComponent != null)
+        {
+            busComponent.SetState(isActive ? BusState.Waiting : BusState.Waiting);
+        }
+        
+        Debug.Log($"✅ Bus spawned and positioned: {busData.color}");
+    }
+
+    System.Collections.IEnumerator MoveBusToPosition(GameObject bus, Vector3 targetPosition)
+    {
+        Vector3 startPosition = bus.transform.position;
+        float duration = 2f / busAnimationSpeed;
+        float elapsed = 0f;
+        
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = busMoveCurve.Evaluate(elapsed / duration);
+            bus.transform.position = Vector3.Lerp(startPosition, targetPosition, t);
+            yield return null;
+        }
+        
+        bus.transform.position = targetPosition;
+    }
+
     void CheckAndBoardFromWaitingGrid()
     {
         if (waitingGrid == null || currentBus == null) return;
 
-        // Waiting grid'de bu renkte kaç kişi var?
         int availablePeople = waitingGrid.GetPeopleCountByColor(currentBus.color);
 
         if (availablePeople > 0)
         {
             OnGameMessage?.Invoke($"Found {availablePeople} {currentBus.color} people in waiting area!");
 
-            // Bu renkteki insanları al
             List<GridObject> peopleToBoard = waitingGrid.GetPeopleByColor(currentBus.color);
 
-            // Otobüs kapasitesi kadar bindir
             int boarded = 0;
             for (int i = 0; i < peopleToBoard.Count && boarded < currentBus.capacity; i++)
             {
                 GridObject person = peopleToBoard[i];
 
-                // Waiting grid'den çıkar
                 waitingGrid.RemovePersonByObject(person);
-
-                // Otobüse bindir
                 StartCoroutine(BoardPersonFromWaitingGrid(person));
 
                 boarded++;
@@ -230,9 +496,6 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Waiting grid'den otobüse binme animasyonu
-    /// </summary>
     System.Collections.IEnumerator BoardPersonFromWaitingGrid(GridObject person)
     {
         Vector3 startPos = person.transform.position;
@@ -251,17 +514,26 @@ public class GameManager : MonoBehaviour
             yield return null;
         }
 
-        // Otobüse bindir
         person.BoardBus();
         currentBus.currentPassengers++;
         peopleInBuses++;
 
+        // BusComponent'i güncelle
+        BusComponent busComponent = currentActiveBus?.GetComponent<BusComponent>();
+        if (busComponent != null)
+        {
+            busComponent.UpdatePassengerCount(currentBus.currentPassengers, currentBus.capacity);
+            busComponent.SetState(BusState.Boarding);
+            
+            yield return new WaitForSeconds(0.3f);
+            busComponent.SetState(BusState.Waiting);
+        }
+
         OnGameMessage?.Invoke($"{person.personColor} boarded from waiting area! ({currentBus.currentPassengers}/{currentBus.capacity})");
 
-        // Otobüs doldu mu?
         if (currentBus.IsFull())
         {
-            yield return new WaitForSeconds(0.5f); // Kısa bekleme
+            yield return new WaitForSeconds(0.5f);
             DepartCurrentBus();
         }
     }
@@ -270,33 +542,33 @@ public class GameManager : MonoBehaviour
 
     public bool CanPersonMove(GridObject person)
     {
-        // NULL CHECKS
         if (person == null || person.gridCell == null)
         {
-            Debug.LogWarning("CanPersonMove: person or gridCell is null");
             return false;
         }
 
         if (gridManager == null)
         {
-            Debug.LogWarning("CanPersonMove: gridManager is null");
             return false;
         }
 
-        // Play area kontrolü
         if (!person.gridCell.isPlayArea)
         {
-            Debug.Log($"Person at ({person.gridCell.x}, {person.gridCell.z}) not in play area");
             return false;
         }
 
-        // COORDINATE FIX: Z koordinatını Y olarak kullan
-        Vector2Int personPos = new Vector2Int(person.gridCell.x, person.gridCell.z);
+        // Front row kontrolü
+        int frontRowZ = gridManager.gridHeight - 1;
+        bool isInFrontRow = person.gridCell.z == frontRowZ;
+        
+        if (isInFrontRow)
+        {
+            return true; // Front row always playable
+        }
 
-        // Pathfinding kontrolü
+        Vector2Int personPos = new Vector2Int(person.gridCell.x, person.gridCell.z);
         bool hasPath = gridManager.CanPersonReachExit(personPos);
 
-        Debug.Log($"Person {person.personColor} at ({personPos.x}, {personPos.y}) - HasPath: {hasPath}");
         return hasPath;
     }
 
@@ -311,6 +583,17 @@ public class GameManager : MonoBehaviour
         if (person.gridCell == null || !person.gridCell.isPlayArea)
         {
             OnGameMessage?.Invoke("Person is not in playable area!");
+            return;
+        }
+
+        // Front row special handling
+        int frontRowZ = gridManager.gridHeight - 1;
+        bool isInFrontRow = person.gridCell.z == frontRowZ;
+        
+        if (isInFrontRow)
+        {
+            ProcessFrontRowPerson(person);
+            OnPersonSelectedEvent?.Invoke(person);
             return;
         }
 
@@ -329,11 +612,107 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        Debug.Log($"Found path with {pathToExit.Count} steps for {person.personColor} at ({personPos.x}, {personPos.y})");
-
         ProcessPersonMovementWithPath(person, pathToExit);
-
         OnPersonSelectedEvent?.Invoke(person);
+    }
+
+    void ProcessFrontRowPerson(GridObject person)
+    {
+        if (currentBus == null)
+        {
+            OnGameMessage?.Invoke("No bus available!");
+            return;
+        }
+
+        if (person.personColor == currentBus.color)
+        {
+            if (currentBus.IsFull())
+            {
+                OnGameMessage?.Invoke("Bus is full!");
+                return;
+            }
+
+            SendFrontRowPersonToBus(person);
+        }
+        else
+        {
+            SendFrontRowPersonToWaitingGrid(person);
+        }
+    }
+
+    void SendFrontRowPersonToBus(GridObject person)
+    {
+        RemovePersonFromGrid(person);
+        StartCoroutine(FrontRowToBusAnimation(person));
+    }
+
+    void SendFrontRowPersonToWaitingGrid(GridObject person)
+    {
+        if (waitingGrid != null && waitingGrid.IsFull())
+        {
+            LoseGame("Waiting grid is full!");
+            return;
+        }
+
+        RemovePersonFromGrid(person);
+        StartCoroutine(FrontRowToWaitingGridAnimation(person));
+    }
+
+    System.Collections.IEnumerator FrontRowToBusAnimation(GridObject person)
+    {
+        Vector3 startPos = person.transform.position;
+        Vector3 busEntryPoint = GetBusPosition() + Vector3.back * 2f;
+
+        float duration = 0.8f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = elapsed / duration;
+            person.transform.position = Vector3.Lerp(startPos, busEntryPoint, t);
+            yield return null;
+        }
+
+        person.BoardBus();
+        currentBus.currentPassengers++;
+        peopleInBuses++;
+
+        BusComponent busComponent = currentActiveBus?.GetComponent<BusComponent>();
+        if (busComponent != null)
+        {
+            busComponent.UpdatePassengerCount(currentBus.currentPassengers, currentBus.capacity);
+            busComponent.SetState(BusState.Boarding);
+            
+            yield return new WaitForSeconds(0.5f);
+            busComponent.SetState(BusState.Waiting);
+        }
+
+        OnGameMessage?.Invoke($"{person.personColor} boarded directly! ({currentBus.currentPassengers}/{currentBus.capacity})");
+
+        if (currentBus.IsFull())
+        {
+            DepartCurrentBus();
+        }
+        
+        // CRITICAL: Person removed from grid, update states
+        OnPersonMoved();
+    }
+
+    System.Collections.IEnumerator FrontRowToWaitingGridAnimation(GridObject person)
+    {
+        if (waitingGrid != null && waitingGrid.AddPersonToWaiting(person))
+        {
+            OnGameMessage?.Invoke($"Wrong color! Sent to waiting area ({waitingGrid.GetOccupiedCount()}/{waitingGrid.capacity})");
+        }
+        else
+        {
+            LoseGame("Failed to add person to waiting area!");
+        }
+
+        // CRITICAL: Person moved to waiting grid, update states
+        OnPersonMoved();
+        yield return null;
     }
 
     void ProcessPersonMovementWithPath(GridObject person, List<Vector2Int> pathToExit)
@@ -344,15 +723,12 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Renk kontrolü
         if (person.personColor == currentBus.color)
         {
-            // Doğru renk - otobüse gönder
             SendPersonToBusWithPath(person, pathToExit);
         }
         else
         {
-            // Yanlış renk - bekleme gridine gönder  
             SendPersonToWaitingGridWithPath(person, pathToExit);
         }
     }
@@ -365,24 +741,19 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // PATH FOLLOWING ile otobüse hareket ettir
         StartCoroutine(MovePersonAlongPath(person, pathToExit, MoveDestination.Bus));
     }
 
     void SendPersonToWaitingGridWithPath(GridObject person, List<Vector2Int> pathToExit)
     {
-        // Waiting grid dolu mu?
         if (waitingGrid != null && waitingGrid.IsFull())
         {
             LoseGame("Waiting grid is full!");
             return;
         }
 
-        // PATH FOLLOWING ile waiting grid'e hareket ettir
         StartCoroutine(MovePersonAlongPath(person, pathToExit, MoveDestination.WaitingGrid));
     }
-
-    // === PATH FOLLOWING ANIMATION SYSTEM ===
 
     public enum MoveDestination
     {
@@ -392,38 +763,27 @@ public class GameManager : MonoBehaviour
 
     System.Collections.IEnumerator MovePersonAlongPath(GridObject person, List<Vector2Int> path, MoveDestination destination)
     {
-        Debug.Log($"Starting path movement for {person.personColor} to {destination}");
-
-        // Grid'den kaldır
         RemovePersonFromGrid(person);
 
-        // Path boyunca hareket et
         for (int i = 0; i < path.Count; i++)
         {
             Vector2Int gridPos = path[i];
             Vector3 worldPos = gridManager.GetWorldPosition(gridPos.x, gridPos.y);
-            worldPos.y = person.transform.position.y; // Y pozisyonunu koru
+            worldPos.y = person.transform.position.y;
 
-            // Hareket animasyonu
             yield return StartCoroutine(MovePersonToPosition(person, worldPos));
-
-            // Debug çizgisi
-            if (i < path.Count - 1)
-            {
-                Vector2Int nextPos = path[i + 1];
-                Vector3 nextWorldPos = gridManager.GetWorldPosition(nextPos.x, nextPos.y);
-                Debug.DrawLine(worldPos + Vector3.up, nextWorldPos + Vector3.up, Color.green, 1f);
-            }
         }
 
-        // Path tamamlandı - hedefe göre final hareket
         yield return StartCoroutine(HandleFinalDestination(person, destination));
+        
+        // CRITICAL: Hareket sonrası grid state'i güncelle
+        OnPersonMoved();
     }
 
     System.Collections.IEnumerator MovePersonToPosition(GridObject person, Vector3 targetPos)
     {
         Vector3 startPos = person.transform.position;
-        float duration = 0.5f; // Her adım 0.5 saniye
+        float duration = 0.5f;
         float elapsed = 0f;
 
         while (elapsed < duration)
@@ -454,18 +814,15 @@ public class GameManager : MonoBehaviour
 
     System.Collections.IEnumerator MoveToBusEntryPoint(GridObject person)
     {
-        // Otobüs giriş noktasına hareket et
         Vector3 busEntryPoint = GetBusPosition() + Vector3.back * 2f;
         yield return StartCoroutine(MovePersonToPosition(person, busEntryPoint));
 
-        // Otobüse bindir
         person.BoardBus();
         currentBus.currentPassengers++;
         peopleInBuses++;
 
         OnGameMessage?.Invoke($"{person.personColor} boarded! ({currentBus.currentPassengers}/{currentBus.capacity})");
 
-        // Otobüs doldu mu?
         if (currentBus.IsFull())
         {
             DepartCurrentBus();
@@ -474,7 +831,6 @@ public class GameManager : MonoBehaviour
 
     System.Collections.IEnumerator MoveToWaitingGrid(GridObject person)
     {
-        // Waiting grid'e ekle (hareket WaitingGrid tarafından yapılacak)
         if (waitingGrid != null && waitingGrid.AddPersonToWaiting(person))
         {
             OnGameMessage?.Invoke($"Wrong color! ({waitingGrid.GetOccupiedCount()}/{waitingGrid.capacity})");
@@ -484,20 +840,105 @@ public class GameManager : MonoBehaviour
             LoseGame("Failed to add person to waiting area!");
         }
 
-        yield return null; // Placeholder
+        yield return null;
     }
 
     void DepartCurrentBus()
     {
-        if (currentBus == null) return;
+        if (currentBus == null || busSystemState == BusSystemState.MovingBuses) return;
 
+        Debug.Log($"=== DEPARTING CURRENT BUS: {currentBus.color} ===");
+        
         OnBusDeparted?.Invoke(currentBus);
         OnGameMessage?.Invoke($"{currentBus.color} bus departed with {currentBus.currentPassengers} passengers!");
+        
+        busSystemState = BusSystemState.MovingBuses;
+        
+        if (busMovementCoroutine != null)
+        {
+            StopCoroutine(busMovementCoroutine);
+        }
+        busMovementCoroutine = StartCoroutine(HandleBusMovement());
+    }
 
-        currentBusIndex++;
-
-        // Sıradaki otobüsü getir
-        ArriveNextBus();
+    System.Collections.IEnumerator HandleBusMovement()
+    {
+        Debug.Log("=== HANDLING BUS MOVEMENT ===");
+        
+        // 1. Aktif otobüsü departing state'ine al
+        BusComponent activeBusComponent = null;
+        if (currentActiveBus != null)
+        {
+            activeBusComponent = currentActiveBus.GetComponent<BusComponent>();
+            if (activeBusComponent != null)
+            {
+                activeBusComponent.SetState(BusState.Departing);
+            }
+            
+            yield return StartCoroutine(MoveBusToPosition(currentActiveBus, busExitPoint.position));
+            Destroy(currentActiveBus);
+            currentActiveBus = null;
+        }
+        
+        // 2. Bekleyen otobüsü aktif pozisyona getir
+        if (currentWaitingBus != null)
+        {
+            BusComponent waitingBusComponent = currentWaitingBus.GetComponent<BusComponent>();
+            if (waitingBusComponent != null)
+            {
+                waitingBusComponent.SetState(BusState.Approaching);
+            }
+            
+            yield return StartCoroutine(MoveBusToPosition(currentWaitingBus, busActivePosition.position));
+            
+            currentActiveBus = currentWaitingBus;
+            currentWaitingBus = null;
+            
+            currentBusIndex++;
+            if (currentBusIndex < allBuses.Count)
+            {
+                currentBus = allBuses[currentBusIndex];
+                currentBus.SetActive(true);
+                
+                if (waitingBusComponent != null)
+                {
+                    waitingBusComponent.Initialize(currentBus);
+                    waitingBusComponent.SetAsActiveBus(true);
+                    waitingBusComponent.SetState(BusState.Waiting);
+                }
+                
+                OnBusArrived?.Invoke(currentBus);
+                OnGameMessage?.Invoke($"{currentBus.color} bus is now ready! ({currentBus.capacity} seats)");
+            }
+        }
+        
+        // 3. Yeni bekleyen otobüsü spawn et
+        if (currentBusIndex + 1 < allBuses.Count)
+        {
+            yield return StartCoroutine(SpawnBusAt(currentBusIndex + 1, busWaitingPosition, false));
+        }
+        
+        busSystemState = BusSystemState.ActiveWaiting;
+        
+        if (currentBus != null)
+        {
+            CheckAndBoardFromWaitingGrid();
+        }
+        
+        if (currentBusIndex >= allBuses.Count)
+        {
+            busSystemState = BusSystemState.LevelComplete;
+            
+            if (peopleInBuses >= totalPeople)
+            {
+                WinLevel();
+            }
+        }
+        
+        // CRITICAL: Bus changed, update playable states
+        OnBusStateChanged();
+        
+        Debug.Log("=== BUS MOVEMENT COMPLETED ===");
     }
 
     void RemovePersonFromGrid(GridObject person)
@@ -508,7 +949,6 @@ public class GameManager : MonoBehaviour
             person.gridCell = null;
         }
 
-        // Kişiyi aktif listeden çıkar
         if (allPeople.Contains(person))
         {
             allPeople.Remove(person);
@@ -517,17 +957,14 @@ public class GameManager : MonoBehaviour
 
     Vector3 GetBusPosition()
     {
-        if (busPosition != null)
-            return busPosition.position;
+        if (busActivePosition != null)
+            return busActivePosition.position;
+            
+        if (currentActiveBus != null)
+            return currentActiveBus.transform.position;
 
-        if (currentBusObject != null)
-            return currentBusObject.transform.position;
-
-        // Fallback - ekranın ortası
         return new Vector3(0, 1, 0);
     }
-
-    // === PLAYABLE PERSONS UPDATE ===
 
     public List<GridObject> GetPlayablePersons()
     {
@@ -537,7 +974,6 @@ public class GameManager : MonoBehaviour
         {
             if (person.gridCell != null && person.gridCell.isPlayArea)
             {
-                // YENİ SİSTEM: Pathfinding ile kontrol
                 if (CanPersonMove(person))
                 {
                     playable.Add(person);
@@ -550,8 +986,7 @@ public class GameManager : MonoBehaviour
 
     void CheckWinCondition()
     {
-        // Tüm insanlar otobüslere bindi mi?
-        if (peopleInBuses >= totalPeople)
+        if (peopleInBuses >= totalPeople && busSystemState == BusSystemState.LevelComplete)
         {
             WinLevel();
         }
@@ -559,14 +994,12 @@ public class GameManager : MonoBehaviour
 
     void CheckLoseCondition()
     {
-        // Waiting Grid dolu mu?
         if (waitingGrid != null && waitingGrid.IsFull())
         {
             LoseGame("Waiting grid is full!");
             return;
         }
 
-        // Hareket edilebilir kişi kalmadı mı ama hala level tamamlanmadı mı?
         var playablePeople = GetPlayablePersons();
         if (playablePeople.Count == 0 && peopleInBuses < totalPeople && currentBusIndex >= allBuses.Count)
         {
@@ -588,18 +1021,15 @@ public class GameManager : MonoBehaviour
         OnGameMessage?.Invoke($"Game Over: {reason}");
     }
 
-    // Level data yükleme metodu
     public void LoadLevelData(LevelData levelData)
     {
         currentLevelData = levelData;
 
-        // Grid'i yeniden oluştur
         if (gridManager != null)
         {
             gridManager.gridWidth = levelData.gridWidth;
             gridManager.gridHeight = levelData.gridHeight;
 
-            // ÖNEMLİ: Play area data'yı GridManager'a yükle
             if (levelData.playAreaData != null)
             {
                 gridManager.LoadLevelPlayAreaData(levelData.playAreaData);
@@ -608,12 +1038,10 @@ public class GameManager : MonoBehaviour
             gridManager.ForceGridRecreation();
         }
 
-        // Level'ı yeniden başlat
         InitializeLevel();
         StartLevel();
     }
 
-    // Public methods for UI buttons
     public void RestartLevel()
     {
         UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
@@ -625,7 +1053,6 @@ public class GameManager : MonoBehaviour
         RestartLevel();
     }
 
-    // Getter methods
     public BusData GetCurrentBus()
     {
         return currentBus;
@@ -641,75 +1068,162 @@ public class GameManager : MonoBehaviour
         return waitingGrid != null ? waitingGrid.GetOccupiedCount() : 0;
     }
 
-    // Shape system helper methods
-    public int GetPlayAreaCellCount()
+    // Cache'i temizle
+    public void ClearPlayableCache()
     {
-        if (gridManager == null) return 0;
-
-        int count = 0;
-        for (int x = 0; x < gridManager.gridWidth; x++)
-        {
-            for (int z = 0; z < gridManager.gridHeight; z++)
-            {
-                GridCell cell = gridManager.GetCell(x, z);
-                if (cell != null && cell.isPlayArea)
-                {
-                    count++;
-                }
-            }
-        }
-        return count;
+        playableCache.Clear();
+        needsPlayableUpdate = true;
     }
 
-    public List<Vector2Int> GetPlayAreaPositions()
+    // Manual bus sequence metodları
+    [ContextMenu("Use Manual Bus Sequence")]
+    public void UseManualBusSequence()
     {
-        List<Vector2Int> positions = new List<Vector2Int>();
-
-        if (gridManager == null) return positions;
-
-        for (int x = 0; x < gridManager.gridWidth; x++)
+        if (manualBusSequence.Count > 0)
         {
-            for (int z = 0; z < gridManager.gridHeight; z++)
+            Debug.Log("=== USING MANUAL BUS SEQUENCE ===");
+            allBuses = new List<BusData>(manualBusSequence);
+            
+            for (int i = 0; i < allBuses.Count; i++)
             {
-                GridCell cell = gridManager.GetCell(x, z);
-                if (cell != null && cell.isPlayArea)
-                {
-                    positions.Add(new Vector2Int(x, z));
-                }
+                Debug.Log($"  Manual Bus {i}: {allBuses[i].color} (Capacity: {allBuses[i].capacity})");
             }
+            
+            Debug.Log("Manual bus sequence applied!");
         }
-
-        return positions;
+        else
+        {
+            Debug.LogWarning("Manual bus sequence is empty!");
+        }
     }
 
-    // === DEBUG METHODS ===
-
-    [ContextMenu("Debug All Paths")]
-   public void DebugAllPersonPaths()
+    [ContextMenu("Debug Current Level Data")]
+    public void DebugCurrentLevelData()
     {
-        if (gridManager == null)
+        Debug.Log("=== CURRENT LEVEL DATA DEBUG ===");
+        Debug.Log($"currentLevelData: {(currentLevelData != null ? "EXISTS" : "NULL")}");
+        
+        if (currentLevelData != null)
         {
-            Debug.LogError("GridManager is null - cannot debug paths");
-            return;
-        }
-
-        foreach (var person in allPeople)
-        {
-            if (person.gridCell != null && person.gridCell.isPlayArea)
+            Debug.Log($"Grid Size: {currentLevelData.gridWidth}x{currentLevelData.gridHeight}");
+            Debug.Log($"Objects: {currentLevelData.objects?.Count ?? 0}");
+            Debug.Log($"Bus Sequence: {currentLevelData.busSequence?.Count ?? 0}");
+            Debug.Log($"Play Area Data: {currentLevelData.playAreaData?.Count ?? 0}");
+            
+            if (currentLevelData.busSequence != null)
             {
-                Vector2Int personPos = new Vector2Int(person.gridCell.x, person.gridCell.z);
-                var path = gridManager.FindPathToExit(personPos);
-                
-                if (path != null)
+                for (int i = 0; i < currentLevelData.busSequence.Count; i++)
                 {
-                    Debug.Log($"{person.personColor} at ({personPos.x}, {personPos.y}): Path found with {path.Count} steps");
-                    gridManager.DebugDrawPath(path);
-                }
-                else
-                {
-                    Debug.Log($"{person.personColor} at ({personPos.x}, {personPos.y}): No path available");
+                    var bus = currentLevelData.busSequence[i];
+                    Debug.Log($"  Level Bus {i}: {bus.color} (Capacity: {bus.capacity})");
                 }
             }
+        }
+        
+        Debug.Log("=== CURRENT LEVEL DATA DEBUG END ===");
+    }
+
+    [ContextMenu("Quick Test Bus Sequence")]
+    public void QuickTestBusSequence()
+    {
+        Debug.Log("=== QUICK TEST BUS SEQUENCE ===");
+        
+        allBuses.Clear();
+        
+        // Örnek sıra: Kırmızı → Mavi → Yeşil
+        allBuses.Add(new BusData(PersonColor.Red, 3));
+        allBuses.Add(new BusData(PersonColor.Blue, 4));
+        allBuses.Add(new BusData(PersonColor.Green, 2));
+        
+        Debug.Log("Test bus sequence created:");
+        for (int i = 0; i < allBuses.Count; i++)
+        {
+            Debug.Log($"  Test Bus {i}: {allBuses[i].color} (Capacity: {allBuses[i].capacity})");
+        }
+        
+        Debug.Log("=== QUICK TEST COMPLETED ===");
+    }
+
+    [ContextMenu("Debug Bus Prefabs")]
+    public void DebugBusPrefabs()
+    {
+        Debug.Log("=== BUS PREFABS DEBUG ===");
+        
+        for (int i = 0; i < busPrefabs.Length; i++)
+        {
+            PersonColor color = (PersonColor)i;
+            string status = busPrefabs[i] != null ? "✅ LOADED" : "❌ MISSING";
+            string prefabName = busPrefabs[i] != null ? busPrefabs[i].name : "NULL";
+            
+            Debug.Log($"  {color} ({i}): {status} - {prefabName}");
+        }
+        
+        Debug.Log("=== BUS PREFABS DEBUG END ===");
+    }
+
+    [ContextMenu("Debug Bus Positions")]
+    public void DebugBusPositions()
+    {
+        Debug.Log("=== BUS POSITIONS DEBUG ===");
+        Debug.Log($"Spawn Point: {(busSpawnPoint != null ? busSpawnPoint.position : "NULL")}");
+        Debug.Log($"Active Position: {(busActivePosition != null ? busActivePosition.position : "NULL")}");
+        Debug.Log($"Waiting Position: {(busWaitingPosition != null ? busWaitingPosition.position : "NULL")}");
+        Debug.Log($"Exit Point: {(busExitPoint != null ? busExitPoint.position : "NULL")}");
+        Debug.Log($"Current Active Bus: {(currentActiveBus != null ? currentActiveBus.name : "NULL")}");
+        Debug.Log($"Current Waiting Bus: {(currentWaitingBus != null ? currentWaitingBus.name : "NULL")}");
+        Debug.Log($"Bus System State: {busSystemState}");
+        Debug.Log($"Current Bus Index: {currentBusIndex}/{allBuses.Count}");
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (busSpawnPoint != null)
+        {
+            Gizmos.color = Color.blue;
+            Gizmos.DrawWireCube(busSpawnPoint.position, Vector3.one * 2f);
+        }
+        
+        if (busActivePosition != null)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(busActivePosition.position, Vector3.one * 2f);
+        }
+        
+        if (busWaitingPosition != null)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireCube(busWaitingPosition.position, Vector3.one * 2f);
+        }
+        
+        if (busExitPoint != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireCube(busExitPoint.position, Vector3.one * 2f);
+        }
+        
+        // Yol çizgileri
+        if (busSpawnPoint != null && busActivePosition != null)
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawLine(busSpawnPoint.position, busActivePosition.position);
+        }
+        
+        if (busActivePosition != null && busExitPoint != null)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(busActivePosition.position, busExitPoint.position);
+        }
+        
+        if (busSpawnPoint != null && busWaitingPosition != null)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawLine(busSpawnPoint.position, busWaitingPosition.position);
+        }
+        
+        if (busWaitingPosition != null && busActivePosition != null)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawLine(busWaitingPosition.position, busActivePosition.position);
         }
     }
 }

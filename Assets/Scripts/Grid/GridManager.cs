@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -422,7 +423,17 @@ public class GridManager : MonoBehaviour
     /// </summary>
     private void AssignExistingObjectsToGridCells()
     {
-        Debug.Log("=== DEBUGGING GRID ASSIGNMENT ===");
+        Debug.Log("=== ENHANCED GRID ASSIGNMENT DEBUG ===");
+
+        // Grid durumunu kontrol et
+        if (grid == null)
+        {
+            Debug.LogError("Grid array is NULL!");
+            return;
+        }
+
+        Debug.Log($"Grid dimensions: {gridWidth}x{gridHeight}");
+        Debug.Log($"Grid initialized: {gridInitialized}");
 
         // Sahnedeki tüm GridObject'ları bul
         GridObject[] allGridObjects = FindObjectsOfType<GridObject>();
@@ -439,64 +450,68 @@ public class GridManager : MonoBehaviour
 
         foreach (GridObject gridObj in allGridObjects)
         {
-            Debug.Log($"Processing GridObject: {gridObj.name} ({gridObj.personColor})");
-            Debug.Log($"  Current position: {gridObj.transform.position}");
-            Debug.Log($"  Current gridCell: {(gridObj.gridCell != null ? "ASSIGNED" : "NULL")}");
-
-            // Zaten cell'e atanmışsa geç
-            if (gridObj.gridCell != null)
-            {
-                Debug.Log($"  ✅ {gridObj.personColor} already has gridCell assigned");
-                continue;
-            }
+            Debug.Log($"--- Processing GridObject: {gridObj.name} ({gridObj.personColor}) ---");
+            Debug.Log($"  World position: {gridObj.transform.position}");
+            Debug.Log($"  Current gridCell: {(gridObj.gridCell != null ? $"({gridObj.gridCell.x}, {gridObj.gridCell.z})" : "NULL")}");
 
             // Objenin dünya pozisyonunu grid pozisyonuna çevir
             Vector2Int gridPos = GetGridPosition(gridObj.transform.position);
             Debug.Log($"  Calculated grid position: ({gridPos.x}, {gridPos.y})");
 
             // Geçerli pozisyon mu kontrol et
-            if (IsValidPosition(gridPos))
+            if (!IsValidPosition(gridPos))
             {
-                GridCell cell = GetCell(gridPos);
-                Debug.Log($"  Cell found: {(cell != null ? "YES" : "NO")}");
+                skippedCount++;
+                Debug.LogWarning($"  ❌ INVALID POSITION {gridObj.personColor} at ({gridPos.x}, {gridPos.y}) - Outside grid bounds");
+                continue;
+            }
 
-                if (cell != null)
-                {
-                    Debug.Log($"  Cell isPlayArea: {cell.isPlayArea}");
-                    Debug.Log($"  Cell isVisible: {cell.isVisible}");
-                    Debug.Log($"  Cell IsOccupied: {cell.IsOccupied}");
-                }
+            GridCell cell = GetCell(gridPos);
+            Debug.Log($"  Cell found: {(cell != null ? "YES" : "NO")}");
 
-                if (cell != null && cell.isPlayArea)
+            if (cell != null)
+            {
+                Debug.Log($"  Cell.isPlayArea: {cell.isPlayArea}");
+                Debug.Log($"  Cell.isVisible: {cell.isVisible}");
+                Debug.Log($"  Cell.IsOccupied BEFORE: {cell.IsOccupied}");
+                Debug.Log($"  Cell.occupyingObject BEFORE: {(cell.occupyingObject != null ? cell.occupyingObject.name : "NULL")}");
+
+                if (cell.isPlayArea && cell.isVisible)
                 {
-                    // GridObject'ı cell'e ata
+                    // CRITICAL FIX: GridObject'ı cell'e ata VE cell'i occupy et
                     gridObj.gridCell = cell;
 
-                    // Cell'i işgal edilmiş olarak işaretle
+                    // BURADA SORUN VARDI - SetOccupied çağrılmıyordu!
                     cell.SetOccupied(gridObj.gameObject);
 
                     assignedCount++;
-                    Debug.Log($"  ✅ ASSIGNED {gridObj.personColor} to grid cell ({gridPos.x}, {gridPos.y})");
+                    Debug.Log($"  ✅ SUCCESSFULLY ASSIGNED {gridObj.personColor} to grid cell ({gridPos.x}, {gridPos.y})");
+                    Debug.Log($"  Cell.IsOccupied AFTER: {cell.IsOccupied}");
+                    Debug.Log($"  Cell.occupyingObject AFTER: {(cell.occupyingObject != null ? cell.occupyingObject.name : "NULL")}");
                 }
                 else
                 {
                     skippedCount++;
-                    string reason = cell == null ? "CELL IS NULL" :
-                                   !cell.isPlayArea ? "NOT IN PLAY AREA" : "UNKNOWN";
+                    string reason = !cell.isPlayArea ? "NOT IN PLAY AREA" : "NOT VISIBLE";
                     Debug.LogWarning($"  ⚠️ SKIPPED {gridObj.personColor} at ({gridPos.x}, {gridPos.y}) - Reason: {reason}");
                 }
             }
             else
             {
                 skippedCount++;
-                Debug.LogWarning($"  ❌ INVALID POSITION {gridObj.personColor} at ({gridPos.x}, {gridPos.y}) - Outside grid bounds");
+                Debug.LogWarning($"  ❌ CELL IS NULL at ({gridPos.x}, {gridPos.y})");
             }
 
             Debug.Log($"  --- End processing {gridObj.name} ---");
         }
 
-        Debug.Log($"=== ASSIGNMENT COMPLETED: {assignedCount} assigned, {skippedCount} skipped ===");
+        Debug.Log($"=== FINAL ASSIGNMENT RESULT ===");
+        Debug.Log($"✅ Successfully assigned: {assignedCount}");
+        Debug.Log($"⚠️ Skipped: {skippedCount}");
+        Debug.Log($"📊 Total processed: {allGridObjects.Length}");
+        Debug.Log($"=== ASSIGNMENT COMPLETED ===");
     }
+
 
     /// <summary>
     /// Manual assignment method for editor or debugging
@@ -580,6 +595,12 @@ public class GridManager : MonoBehaviour
 #endif
 
         InitializeGrid();
+
+        // CRITICAL: Grid oluşturulduktan sonra occupancy'i kontrol et
+        if (Application.isPlaying)
+        {
+            StartCoroutine(DelayedOccupancyCheck());
+        }
     }
 
     // Level data yükleme metodu - GameManager için
@@ -610,6 +631,31 @@ public class GridManager : MonoBehaviour
 #endif
     }
 
+    private System.Collections.IEnumerator DelayedOccupancyCheck()
+    {
+        yield return new WaitForEndOfFrame();
+
+        Debug.Log("=== DELAYED OCCUPANCY CHECK ===");
+
+        // Tüm GridObject'ları tekrar kontrol et
+        GridObject[] allObjects = FindObjectsOfType<GridObject>();
+
+        foreach (var obj in allObjects)
+        {
+            if (obj.gridCell != null)
+            {
+                // Cell'in gerçekten occupy edildiğinden emin ol
+                if (!obj.gridCell.IsOccupied)
+                {
+                    Debug.LogWarning($"FIXING: {obj.personColor} gridCell was not occupied!");
+                    obj.gridCell.SetOccupied(obj.gameObject);
+                }
+            }
+        }
+
+        Debug.Log("=== DELAYED OCCUPANCY CHECK COMPLETED ===");
+    }
+
     // === PATHFINDING SYSTEM ===
 
     /// <summary>
@@ -621,32 +667,30 @@ public class GridManager : MonoBehaviour
     public List<Vector2Int> FindPathToExit(Vector2Int startPos)
     {
         if (!IsValidPosition(startPos))
-        {
-            Debug.LogWarning($"Invalid start position: {startPos}");
             return null;
-        }
 
         // SPECIAL CASE: If person is already in the exit row (front row)
         int frontRowZ = gridHeight - 1;
+
         if (startPos.y == frontRowZ)
         {
             // Check if there's at least one empty exit point in the same row
-            List<Vector2Int> exitPoints = GetExitPoints();
+            List<Vector2Int> exitPoints = GetExitPointsExcluding(startPos);
 
             if (exitPoints.Count > 0)
             {
-                // Person is in exit row and there are empty exits -> can move to bus
+                // Person is in exit row and there are other empty exits -> can move to bus
                 Vector2Int nearestExit = GetNearestExitPoint(startPos, exitPoints);
 
                 // Create simple path: current position -> nearest exit
                 List<Vector2Int> exitRowPath = new List<Vector2Int> { startPos, nearestExit };
-                Debug.Log($"Exit row person at {startPos} can move to {nearestExit}");
                 return exitRowPath;
             }
             else
             {
-                Debug.Log($"Exit row person at {startPos} has no available exits");
-                return null;
+                // Alternative: If no other exits, person can exit from their own position
+                List<Vector2Int> selfExitPath = new List<Vector2Int> { startPos };
+                return selfExitPath;
             }
         }
 
@@ -654,14 +698,45 @@ public class GridManager : MonoBehaviour
         List<Vector2Int> allExitPoints = GetExitPoints();
 
         if (allExitPoints.Count == 0)
-        {
-            Debug.LogWarning("No exit points found!");
             return null;
-        }
 
         // Use BFS to find shortest path to any exit
         return BFS_FindPath(startPos, allExitPoints);
     }
+
+    /// <summary>
+    /// Gets exit points excluding a specific position
+    /// </summary>
+    /// <param name="excludePos"></param>
+    /// <returns></returns>
+    private List<Vector2Int> GetExitPointsExcluding(Vector2Int excludePos)
+    {
+        List<Vector2Int> exitPoints = new List<Vector2Int>();
+
+        // Front row is the one with highest Z coordinate (closest to bus)
+        int frontRowZ = gridHeight - 1;
+
+        for (int x = 0; x < gridWidth; x++)
+        {
+            Vector2Int pos = new Vector2Int(x, frontRowZ);
+
+            // Skip the person's own position
+            if (pos == excludePos)
+                continue;
+
+            GridCell cell = GetCell(pos);
+
+            if (cell != null && cell.isPlayArea && cell.IsWalkable && !cell.IsOccupied)
+            {
+                exitPoints.Add(pos);
+            }
+        }
+
+        return exitPoints;
+    }
+
+
+
 
     /// <summary>
     /// Gets nearest exit point to a given position
@@ -671,31 +746,44 @@ public class GridManager : MonoBehaviour
     /// <returns>Nearest exit point</returns>
     private Vector2Int GetNearestExitPoint(Vector2Int fromPos, List<Vector2Int> exitPoints)
     {
+        Debug.Log($"=== GET NEAREST EXIT POINT ===");
+        Debug.Log($"From position: ({fromPos.x}, {fromPos.y})");
+
         if (exitPoints.Count == 0)
+        {
+            Debug.LogWarning("No exit points provided!");
             return Vector2Int.zero;
+        }
 
         if (exitPoints.Count == 1)
+        {
+            Debug.Log($"Only one exit point: ({exitPoints[0].x}, {exitPoints[0].y})");
             return exitPoints[0];
+        }
 
         // Find the closest exit point (Manhattan distance)
         Vector2Int nearest = exitPoints[0];
         int minDistance = Mathf.Abs(fromPos.x - nearest.x) + Mathf.Abs(fromPos.y - nearest.y);
+        Debug.Log($"Initial nearest: ({nearest.x}, {nearest.y}) distance: {minDistance}");
 
         for (int i = 1; i < exitPoints.Count; i++)
         {
             Vector2Int exit = exitPoints[i];
             int distance = Mathf.Abs(fromPos.x - exit.x) + Mathf.Abs(fromPos.y - exit.y);
+            Debug.Log($"Checking exit ({exit.x}, {exit.y}) distance: {distance}");
 
             if (distance < minDistance)
             {
                 minDistance = distance;
                 nearest = exit;
+                Debug.Log($"New nearest: ({nearest.x}, {nearest.y}) distance: {minDistance}");
             }
         }
 
-        Debug.Log($"Nearest exit to {fromPos} is {nearest} (distance: {minDistance})");
+        Debug.Log($"Final nearest exit to ({fromPos.x}, {fromPos.y}) is ({nearest.x}, {nearest.y}) (distance: {minDistance})");
         return nearest;
     }
+
 
     /// <summary>
     /// Enhanced exit point detection - excludes occupied cells in exit row
@@ -713,16 +801,15 @@ public class GridManager : MonoBehaviour
             Vector2Int pos = new Vector2Int(x, frontRowZ);
             GridCell cell = GetCell(pos);
 
-            // Exit point must be: valid, play area, walkable, and NOT OCCUPIED
             if (cell != null && cell.isPlayArea && cell.IsWalkable && !cell.IsOccupied)
             {
                 exitPoints.Add(pos);
             }
         }
 
-        Debug.Log($"Found {exitPoints.Count} exit points at row {frontRowZ}");
         return exitPoints;
     }
+
 
     /// <summary>
     /// BFS pathfinding to find shortest path to any of the target positions
@@ -732,6 +819,12 @@ public class GridManager : MonoBehaviour
     /// <returns>Path as list of positions, or null if no path exists</returns>
     private List<Vector2Int> BFS_FindPath(Vector2Int start, List<Vector2Int> targets)
     {
+        // SPECIAL: If person is already at an exit position, immediate success
+        if (targets.Contains(start))
+        {
+            return new List<Vector2Int> { start };
+        }
+
         // BFS data structures
         Queue<Vector2Int> queue = new Queue<Vector2Int>();
         Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
@@ -740,25 +833,28 @@ public class GridManager : MonoBehaviour
         // Initialize BFS
         queue.Enqueue(start);
         visited.Add(start);
-        cameFrom[start] = start; // Start came from itself
+        cameFrom[start] = start;
 
         // 4-directional movement (no diagonals)
         Vector2Int[] directions = {
-            Vector2Int.up,    // North (z+1)
-            Vector2Int.down,  // South (z-1)  
-            Vector2Int.left,  // West (x-1)
-            Vector2Int.right  // East (x+1)
-        };
+        Vector2Int.up,    // North (z+1)
+        Vector2Int.down,  // South (z-1)  
+        Vector2Int.left,  // West (x-1)
+        Vector2Int.right  // East (x+1)
+    };
+
+        int stepCount = 0;
+        const int MAX_STEPS = 200; // Infinite loop protection
 
         // BFS main loop
-        while (queue.Count > 0)
+        while (queue.Count > 0 && stepCount < MAX_STEPS)
         {
+            stepCount++;
             Vector2Int current = queue.Dequeue();
 
             // Check if we reached any target
             if (targets.Contains(current))
             {
-                Debug.Log($"Path found! Reached exit at {current}");
                 return ReconstructPath(cameFrom, start, current);
             }
 
@@ -782,7 +878,6 @@ public class GridManager : MonoBehaviour
         }
 
         // No path found
-        Debug.Log($"No path found from {start} to any exit point");
         return null;
     }
 
@@ -805,8 +900,15 @@ public class GridManager : MonoBehaviour
         if (!cell.isPlayArea || !cell.isVisible)
             return false;
 
-        // Must be walkable and not occupied
-        return cell.IsWalkable && !cell.IsOccupied;
+        // CRITICAL: Check if cell is occupied by another person
+        if (cell.IsOccupied)
+            return false;
+
+        // Must be walkable
+        if (!cell.IsWalkable)
+            return false;
+
+        return true;
     }
 
     /// <summary>
@@ -831,7 +933,6 @@ public class GridManager : MonoBehaviour
         path.Add(start);
         path.Reverse(); // Reverse to get start -> end
 
-        Debug.Log($"Reconstructed path with {path.Count} steps: {string.Join(" -> ", path)}");
         return path;
     }
 
@@ -844,10 +945,7 @@ public class GridManager : MonoBehaviour
     public bool CanPersonReachExit(Vector2Int personPos)
     {
         var path = FindPathToExit(personPos);
-        bool canReach = path != null && path.Count >= 1; // At least the person's current position
-
-        Debug.Log($"Person at ({personPos.x}, {personPos.y}) can reach exit: {canReach} (path length: {path?.Count ?? 0})");
-        return canReach;
+        return path != null && path.Count >= 1;
     }
 
     /// <summary>
@@ -1037,5 +1135,50 @@ public class GridManager : MonoBehaviour
         if (grid.GetLength(0) != gridWidth || grid.GetLength(1) != gridHeight) return false;
 
         return true;
+    }
+    [ContextMenu("Debug Grid Occupancy")]
+    public void DebugGridOccupancy()
+    {
+        Debug.Log("=== GRID OCCUPANCY DEBUG ===");
+
+        GridManager gridMgr = FindObjectOfType<GridManager>();
+        if (gridMgr == null)
+        {
+            Debug.LogError("GridManager is null!");
+            return;
+        }
+
+        int occupiedCount = 0;
+        int emptyCount = 0;
+        int playAreaCount = 0;
+
+        for (int x = 0; x < gridMgr.gridWidth; x++)
+        {
+            for (int z = 0; z < gridMgr.gridHeight; z++)
+            {
+                GridCell cell = gridMgr.GetCell(x, z);
+                if (cell != null && cell.isPlayArea)
+                {
+                    playAreaCount++;
+
+                    if (cell.IsOccupied)
+                    {
+                        occupiedCount++;
+                        string objName = cell.occupyingObject != null ? cell.occupyingObject.name : "NULL_OBJECT";
+                        Debug.Log($"OCCUPIED: ({x}, {z}) - {objName}");
+                    }
+                    else
+                    {
+                        emptyCount++;
+                    }
+                }
+            }
+        }
+
+        Debug.Log($"📊 Grid Stats:");
+        Debug.Log($"  Play Area Cells: {playAreaCount}");
+        Debug.Log($"  Occupied Cells: {occupiedCount}");
+        Debug.Log($"  Empty Cells: {emptyCount}");
+        Debug.Log($"=== GRID OCCUPANCY DEBUG END ===");
     }
 }

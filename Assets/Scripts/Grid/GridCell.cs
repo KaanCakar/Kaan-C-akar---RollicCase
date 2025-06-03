@@ -45,19 +45,29 @@ public class GridCell
 
     public void SetOccupied(GameObject obj)
     {
+        Debug.Log($"GridCell ({x}, {z}) - SetOccupied called with {(obj != null ? obj.name : "NULL")}");
+
         IsOccupied = true;
         occupyingObject = obj;
+
         if (obj != null && obj.GetComponent<GridObject>()?.objectType == GridObjectType.Person)
         {
             IsWalkable = false;
+            Debug.Log($"GridCell ({x}, {z}) - Set to NOT WALKABLE (occupied by person)");
         }
+
+        Debug.Log($"GridCell ({x}, {z}) - Final state: Occupied={IsOccupied}, Walkable={IsWalkable}");
     }
 
     public void SetEmpty()
     {
+        Debug.Log($"GridCell ({x}, {z}) - SetEmpty called. Was occupied by: {(occupyingObject != null ? occupyingObject.name : "nothing")}");
+
         IsOccupied = false;
         occupyingObject = null;
         IsWalkable = true;
+
+        Debug.Log($"GridCell ({x}, {z}) - Final state: Occupied={IsOccupied}, Walkable={IsWalkable}");
     }
 
     public bool CanMoveTo()

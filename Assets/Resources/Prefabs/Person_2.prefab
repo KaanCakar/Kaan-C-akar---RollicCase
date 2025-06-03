@@ -126,6 +126,8 @@ MonoBehaviour:
     worldPosition: {x: 0, y: 0, z: 0}
     IsWalkable: 0
     IsOccupied: 0
+    isPlayArea: 0
+    isVisible: 0
     cellObject: {fileID: 0}
     occupyingObject: {fileID: 0}
     movementCost: 0

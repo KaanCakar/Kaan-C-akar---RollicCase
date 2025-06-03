@@ -63,7 +63,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 3691c6414e39d4a4f81f6820aed663c4, type: 2}
+  - {fileID: 2100000, guid: cc9de4dc1f1c7404da5138a26e81c25d, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -126,6 +126,8 @@ MonoBehaviour:
     worldPosition: {x: 0, y: 0, z: 0}
     IsWalkable: 0
     IsOccupied: 0
+    isPlayArea: 0
+    isVisible: 0
     cellObject: {fileID: 0}
     occupyingObject: {fileID: 0}
     movementCost: 0
@@ -141,5 +143,5 @@ MonoBehaviour:
       m_Calls: []
   selectionIndicator: {fileID: 0}
   personMaterials:
-  - {fileID: 2100000, guid: 3691c6414e39d4a4f81f6820aed663c4, type: 2}
+  - {fileID: 2100000, guid: cc9de4dc1f1c7404da5138a26e81c25d, type: 2}
   playableOutline: {fileID: 0}
